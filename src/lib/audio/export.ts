@@ -39,7 +39,7 @@ export async function renderMix(
   mode: OutputMode,
 ): Promise<RenderedMix> {
   const sampleRate = engine.ctx.sampleRate;
-  const tempo = state.tempo;
+  const tempo = state.tempoEnabled ? state.tempo : 1;
   const stretched = tempo !== 1;
   const durationSeconds = engine.duration / tempo;
   // Give the stretch algorithm a little tail to flush.

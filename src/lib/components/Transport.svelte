@@ -48,13 +48,21 @@
   <span class="time">{fmt($duration)}</span>
 
   <div class="tempo">
-    <span>Tempo {Math.round($mixer.tempo * 100)}% · pitch preserved</span>
+    <label class="tempo-head" title="Pitch-preserving time-stretch. Off = no extra processing.">
+      <input
+        type="checkbox"
+        checked={$mixer.tempoEnabled}
+        onchange={(e) => patchState({ tempoEnabled: e.currentTarget.checked })}
+      />
+      Tempo{$mixer.tempoEnabled ? ` ${Math.round($mixer.tempo * 100)}% · pitch preserved` : ""}
+    </label>
     <input
       type="range"
       min="0.5"
       max="1.5"
       step="0.05"
       value={$mixer.tempo}
+      disabled={!$mixer.tempoEnabled}
       use:resetOnDblClick={1}
       oninput={(e) => setTempo(+e.currentTarget.value)}
     />
@@ -116,5 +124,14 @@
   .tempo input[type="range"],
   .master input {
     accent-color: var(--accent);
+  }
+  .tempo-head {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .tempo input[type="range"]:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 </style>

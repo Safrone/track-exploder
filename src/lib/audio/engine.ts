@@ -3,15 +3,18 @@ import { effectiveGain, type MixerState } from "../mixer/store";
 import { createStretch, type StretchNode } from "./stretch";
 
 /**
- * Live preview engine built on the Web Audio API with pitch-preserving tempo.
+ * Live preview engine built on the Web Audio API.
  *
- * Each stem is played by a Signalsmith Stretch node (scheduled mode) so tempo
- * changes preserve pitch. Graph per part:
- *   StretchNode → GainNode → StereoPannerNode → mixBus → masterGain → destination
- * Gain/pan/mute stay live because they sit after the per-stem stretcher.
+ * Graph per part: <source> → GainNode → StereoPannerNode → mixBus → masterGain
+ * → destination. Gain/pan/mute stay live because they sit after the source.
  *
- * The playhead advances at `tempo` source-seconds per real second (rate = tempo,
- * where rate < 1 is slower/longer).
+ * Two source types:
+ *  - **plain** (default): AudioBufferSourceNode at natural rate. No stretch
+ *    processing is created at all — used whenever tempo is disabled.
+ *  - **stretch**: one Signalsmith Stretch node per stem (scheduled mode) for
+ *    pitch-preserving tempo. Only built the first time tempo is enabled.
+ *
+ * The playhead advances at the active rate (tempo when stretching, else 1).
  */
 export class MixEngine {
   readonly ctx: AudioContext;
@@ -20,11 +23,14 @@ export class MixEngine {
   private readonly partGain = new Map<Part, GainNode>();
   private readonly partPan = new Map<Part, StereoPannerNode>();
   private readonly buffers = new Map<Part, AudioBuffer>();
+
+  private readonly sources = new Map<Part, AudioBufferSourceNode>();
   private readonly stretch = new Map<Part, StretchNode>();
   private prepared = false;
   private preparing: Promise<void> | null = null;
 
   playing = false;
+  private stretchEnabled = false;
   private tempo = 1;
   private startedAtCtx = 0;
   /** Playhead in *source* seconds when last paused/seeked. */
@@ -53,7 +59,6 @@ export class MixEngine {
 
   setBuffer(part: Part, buffer: AudioBuffer): void {
     this.buffers.set(part, buffer);
-    // Stretchers must be rebuilt with the new sample data.
     this.prepared = false;
   }
 
@@ -72,6 +77,11 @@ export class MixEngine {
     return max;
   }
 
+  /** Effective playback rate (only stretch mode applies tempo). */
+  private get rate(): number {
+    return this.stretchEnabled ? this.tempo : 1;
+  }
+
   /** Apply gain/pan/master/tempo from mixer state. Safe to call any time. */
   applyMix(state: MixerState): void {
     const now = this.ctx.currentTime;
@@ -80,7 +90,42 @@ export class MixEngine {
       this.partPan.get(part)!.pan.setTargetAtTime(state.mix[part].pan, now, 0.01);
     }
     this.masterGain.gain.setTargetAtTime(state.masterGain, now, 0.01);
+    this.setStretchEnabled(state.tempoEnabled);
     this.setTempo(state.tempo);
+  }
+
+  /** Toggle pitch-preserving tempo processing. Restarts playback if needed. */
+  private setStretchEnabled(enabled: boolean): void {
+    if (enabled === this.stretchEnabled) return;
+    const wasPlaying = this.playing;
+    if (wasPlaying) {
+      this.pausedAt = this.position();
+      this.stopActive();
+      this.playing = false;
+      cancelAnimationFrame(this.rafId);
+    }
+    this.stretchEnabled = enabled;
+    if (wasPlaying) void this.play();
+  }
+
+  /** Change tempo, keeping the playhead continuous. rate<1 = slower. */
+  setTempo(tempo: number): void {
+    if (tempo === this.tempo) return;
+    if (this.playing && this.stretchEnabled) {
+      this.pausedAt = this.position();
+      this.startedAtCtx = this.ctx.currentTime;
+    }
+    this.tempo = tempo;
+    if (this.playing && this.stretchEnabled) {
+      for (const s of this.stretch.values()) s.schedule({ rate: tempo });
+    }
+  }
+
+  /** Current playhead in source seconds. */
+  position(): number {
+    if (!this.playing) return this.pausedAt;
+    const elapsed = (this.ctx.currentTime - this.startedAtCtx) * this.rate;
+    return Math.min(Math.max(this.pausedAt + elapsed, 0), this.duration);
   }
 
   /** (Re)build the per-stem stretch nodes from the current buffers. */
@@ -104,7 +149,6 @@ export class MixEngine {
         const buffer = this.buffers.get(part);
         if (!buffer) continue;
         const node = await createStretch(this.ctx);
-        // Copy so the stem AudioBuffer keeps its data (used for waveform/export).
         node.addBuffers([buffer.getChannelData(0).slice()]);
         node.connect(this.partGain.get(part)!);
         this.stretch.set(part, node);
@@ -115,39 +159,34 @@ export class MixEngine {
     return this.preparing;
   }
 
-  /** Change tempo, keeping the playhead continuous. rate<1 = slower. */
-  setTempo(tempo: number): void {
-    if (tempo === this.tempo) return;
-    if (this.playing) {
-      this.pausedAt = this.position();
-      this.startedAtCtx = this.ctx.currentTime;
-    }
-    this.tempo = tempo;
-    if (this.playing) {
-      for (const s of this.stretch.values()) s.schedule({ rate: tempo });
-    }
-  }
-
-  /** Current playhead in source seconds. */
-  position(): number {
-    if (!this.playing) return this.pausedAt;
-    const elapsed = (this.ctx.currentTime - this.startedAtCtx) * this.tempo;
-    return Math.min(Math.max(this.pausedAt + elapsed, 0), this.duration);
-  }
-
   async play(): Promise<void> {
     if (this.playing) return;
     if (this.ctx.state === "suspended") await this.ctx.resume();
-    await this.ensurePrepared();
-    if (this.stretch.size === 0) return;
 
     const offset = this.pausedAt >= this.duration ? 0 : this.pausedAt;
     this.pausedAt = offset;
     const when = this.ctx.currentTime + 0.03;
 
-    for (const node of this.stretch.values()) {
-      node.start(when, offset, undefined, this.tempo, 0);
+    if (this.stretchEnabled) {
+      await this.ensurePrepared();
+      if (this.stretch.size === 0) return;
+      for (const node of this.stretch.values()) {
+        node.start(when, offset, undefined, this.tempo, 0);
+      }
+    } else {
+      this.sources.clear();
+      for (const part of PARTS) {
+        const buffer = this.buffers.get(part);
+        if (!buffer) continue;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(this.partGain.get(part)!);
+        src.start(when, offset);
+        this.sources.set(part, src);
+      }
+      if (this.sources.size === 0) return;
     }
+
     this.startedAtCtx = when;
     this.playing = true;
     this.tick();
@@ -156,7 +195,7 @@ export class MixEngine {
   pause(): void {
     if (!this.playing) return;
     this.pausedAt = this.position();
-    this.stopNodes();
+    this.stopActive();
     this.playing = false;
     cancelAnimationFrame(this.rafId);
   }
@@ -164,7 +203,7 @@ export class MixEngine {
   seek(seconds: number): void {
     const clamped = Math.max(0, Math.min(seconds, this.duration));
     if (this.playing) {
-      this.stopNodes();
+      this.stopActive();
       this.pausedAt = clamped;
       this.playing = false;
       void this.play();
@@ -174,7 +213,7 @@ export class MixEngine {
     }
   }
 
-  private stopNodes(): void {
+  private stopActive(): void {
     const now = this.ctx.currentTime;
     for (const node of this.stretch.values()) {
       try {
@@ -183,6 +222,15 @@ export class MixEngine {
         /* already stopped */
       }
     }
+    for (const src of this.sources.values()) {
+      try {
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
+      src.disconnect();
+    }
+    this.sources.clear();
   }
 
   private tick = (): void => {

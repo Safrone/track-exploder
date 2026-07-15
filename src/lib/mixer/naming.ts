@@ -80,7 +80,8 @@ export function suggestBaseName(state: MixerState): string {
   );
   const song = commonSongBase(names);
   const desc = describeMix(state);
-  const tempo = state.tempo !== 1 ? ` ${Math.round(state.tempo * 100)}pct` : "";
+  const t = state.tempoEnabled ? state.tempo : 1;
+  const tempo = t !== 1 ? ` ${Math.round(t * 100)}pct` : "";
   const mono = state.output === "mono" ? " mono" : "";
   return sanitize(`${song} - ${desc}${tempo}${mono}`);
 }

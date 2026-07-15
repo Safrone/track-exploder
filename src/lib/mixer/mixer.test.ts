@@ -11,6 +11,7 @@ function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerSta
     tracks: {},
     mix,
     masterGain: 1,
+    tempoEnabled: false,
     tempo: 1,
     output: "stereo",
     sourceChannel: "left",

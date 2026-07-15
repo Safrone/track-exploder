@@ -6,6 +6,7 @@ import { commonSongBase, describeMix, suggestBaseName } from "./naming";
 function state(over: {
   mix?: Partial<Record<Part, Partial<PartMix>>>;
   tempo?: number;
+  tempoEnabled?: boolean;
   output?: "stereo" | "mono";
   names?: Partial<Record<Part, string>>;
 }): MixerState {
@@ -22,6 +23,7 @@ function state(over: {
     tracks,
     mix,
     masterGain: 1,
+    tempoEnabled: over.tempoEnabled ?? false,
     tempo: over.tempo ?? 1,
     output: over.output ?? "stereo",
     sourceChannel: "left",
@@ -89,6 +91,7 @@ describe("suggestBaseName", () => {
     const s = state({
       names: REAL_NAMES,
       mix: { lead: { included: false } },
+      tempoEnabled: true,
       tempo: 0.85,
       output: "mono",
     });
