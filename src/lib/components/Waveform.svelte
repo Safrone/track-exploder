@@ -34,6 +34,15 @@
     const playedX = $duration > 0 ? ($position / $duration) * w : 0;
 
     if (envelope) {
+      // Auto-scale to the current mix's peak so the picture re-fits as parts
+      // are added/removed (the combined envelope sums each part's peaks).
+      let peak = 0;
+      for (let i = 0; i < envelope.l.length; i++) {
+        if (envelope.l[i] > peak) peak = envelope.l[i];
+        if (envelope.r[i] > peak) peak = envelope.r[i];
+      }
+      const scale = peak > 0 ? (laneH * 0.46) / peak : 0;
+
       const chans = [envelope.l, envelope.r];
       for (let c = 0; c < 2; c++) {
         const env = chans[c];
@@ -41,7 +50,7 @@
         const cy = centers[c];
         for (let x = 0; x < w; x++) {
           const b = Math.floor((x / w) * n);
-          const amp = Math.min(env[b] ?? 0, 1) * (laneH * 0.46);
+          const amp = (env[b] ?? 0) * scale;
           ctx.strokeStyle = x <= playedX ? "#34d399" : "#5eead4";
           ctx.beginPath();
           ctx.moveTo(x + 0.5, cy - amp);
