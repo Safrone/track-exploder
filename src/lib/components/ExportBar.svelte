@@ -193,7 +193,9 @@
   .namefield {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 0.25rem;
+    width: 100%;
     font-size: 0.8rem;
     color: var(--text-dim);
   }
@@ -201,16 +203,19 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    width: 100%;
   }
   .namerow input {
     flex: 1 1 auto;
     min-width: 0;
+    width: 100%;
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 0.4rem 0.55rem;
-    font-size: 0.9rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.95rem;
+    text-align: left;
   }
   .ext {
     color: var(--text-dim);
