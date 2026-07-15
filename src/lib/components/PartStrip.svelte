@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Part } from "../types";
   import { mixer, setPartMix } from "../mixer/store";
+  import { resetOnDblClick } from "../actions";
 
   interface Props {
     part: Part;
@@ -40,6 +41,7 @@
       max="2"
       step="0.01"
       value={m.gain}
+      use:resetOnDblClick={1}
       oninput={(e) => setPartMix(part, { gain: +e.currentTarget.value })}
     />
   </label>
@@ -52,6 +54,7 @@
       max="1"
       step="0.02"
       value={m.pan}
+      use:resetOnDblClick={0}
       oninput={(e) => setPartMix(part, { pan: +e.currentTarget.value })}
     />
   </label>

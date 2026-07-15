@@ -1,6 +1,7 @@
 <script lang="ts">
   import { mixer, patchState } from "../mixer/store";
   import { getEngine, position, duration, isPlaying } from "../audio/playback";
+  import { resetOnDblClick } from "../actions";
 
   function fmt(sec: number): string {
     if (!isFinite(sec)) return "0:00";
@@ -54,6 +55,7 @@
       max="1.5"
       step="0.05"
       value={$mixer.tempo}
+      use:resetOnDblClick={1}
       oninput={(e) => setTempo(+e.currentTarget.value)}
     />
   </div>
@@ -66,6 +68,7 @@
       max="1.5"
       step="0.01"
       value={$mixer.masterGain}
+      use:resetOnDblClick={1}
       oninput={(e) => patchState({ masterGain: +e.currentTarget.value })}
     />
   </label>
