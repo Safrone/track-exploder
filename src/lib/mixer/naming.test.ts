@@ -23,7 +23,6 @@ function state(over: {
     mix,
     masterGain: 1,
     tempo: over.tempo ?? 1,
-    preservePitch: true,
     output: over.output ?? "stereo",
     sourceChannel: "left",
   };

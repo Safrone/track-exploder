@@ -47,7 +47,7 @@
   <span class="time">{fmt($duration)}</span>
 
   <div class="tempo">
-    <span>Tempo {Math.round($mixer.tempo * 100)}%</span>
+    <span>Tempo {Math.round($mixer.tempo * 100)}% · pitch preserved</span>
     <input
       type="range"
       min="0.5"
@@ -56,14 +56,6 @@
       value={$mixer.tempo}
       oninput={(e) => setTempo(+e.currentTarget.value)}
     />
-    <label class="pp" title="Preserve pitch when changing tempo (requires stretch worklet)">
-      <input
-        type="checkbox"
-        checked={$mixer.preservePitch}
-        onchange={(e) => patchState({ preservePitch: e.currentTarget.checked })}
-      />
-      keep pitch
-    </label>
   </div>
 
   <label class="master">
@@ -121,10 +113,5 @@
   .tempo input[type="range"],
   .master input {
     accent-color: var(--accent);
-  }
-  .pp {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
   }
 </style>

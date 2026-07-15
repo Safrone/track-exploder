@@ -15,10 +15,8 @@ export interface MixerState {
   /** Per-part mix settings. */
   mix: Record<Part, PartMix>;
   masterGain: number;
-  /** Playback / export tempo (0.5 .. 1.5); 1 = original. */
+  /** Playback / export tempo (0.5 .. 1.5); 1 = original. Pitch is always preserved. */
   tempo: number;
-  /** Preserve pitch when changing tempo (requires the stretch worklet). */
-  preservePitch: boolean;
   output: OutputMode;
   /** Which channel the isolated part sits on — shared by all files in a set. */
   sourceChannel: Channel;
@@ -34,7 +32,6 @@ function initialState(): MixerState {
     mix: initialMix(),
     masterGain: 1,
     tempo: 1,
-    preservePitch: true,
     output: "stereo",
     sourceChannel: "left",
   };

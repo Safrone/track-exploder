@@ -1,6 +1,7 @@
 import { PARTS, type OutputMode } from "../types";
 import { effectiveGain, type MixerState } from "../mixer/store";
 import type { MixEngine } from "./engine";
+import { createStretch } from "./stretch";
 
 /**
  * Interleave planar channel data into a single Float32Array.
@@ -28,9 +29,9 @@ export interface RenderedMix {
  * Render the current mix offline (the exact permutation shown in the UI) into
  * interleaved f32 PCM ready to hand to the native encoder.
  *
- * NOTE: tempo is currently applied via `playbackRate` (affects pitch). Swapping
- * in an offline Signalsmith stretch pass here is the planned pitch-preserving
- * upgrade for exports.
+ * At 100% tempo the stems play through plain buffer sources (bit-for-bit the
+ * mix). When slowed, each stem goes through a Signalsmith Stretch node so the
+ * export is pitch-preserved, matching the preview.
  */
 export async function renderMix(
   engine: MixEngine,
@@ -39,8 +40,11 @@ export async function renderMix(
 ): Promise<RenderedMix> {
   const sampleRate = engine.ctx.sampleRate;
   const tempo = state.tempo;
+  const stretched = tempo !== 1;
   const durationSeconds = engine.duration / tempo;
-  const length = Math.max(1, Math.ceil(durationSeconds * sampleRate));
+  // Give the stretch algorithm a little tail to flush.
+  const tail = stretched ? 0.5 : 0;
+  const length = Math.max(1, Math.ceil((durationSeconds + tail) * sampleRate));
 
   const offline = new OfflineAudioContext(2, length, sampleRate);
   const master = offline.createGain();
@@ -52,19 +56,24 @@ export async function renderMix(
     const gainValue = effectiveGain(state, part);
     if (!buffer || gainValue === 0) continue;
 
-    const src = offline.createBufferSource();
-    src.buffer = buffer;
-    src.playbackRate.value = tempo;
-
     const gain = offline.createGain();
     gain.gain.value = gainValue;
     const pan = offline.createStereoPanner();
     pan.pan.value = state.mix[part].pan;
-
-    src.connect(gain);
     gain.connect(pan);
     pan.connect(master);
-    src.start(0);
+
+    if (stretched) {
+      const node = await createStretch(offline);
+      node.addBuffers([buffer.getChannelData(0).slice()]);
+      node.connect(gain);
+      node.start(0, 0, undefined, tempo, 0);
+    } else {
+      const src = offline.createBufferSource();
+      src.buffer = buffer;
+      src.connect(gain);
+      src.start(0);
+    }
   }
 
   const rendered = await offline.startRendering();
