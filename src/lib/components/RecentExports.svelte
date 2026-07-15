@@ -1,6 +1,6 @@
 <script lang="ts">
   import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
-  import { exportsList } from "../mixer/exports";
+  import { exportsList, clearExports } from "../mixer/exports";
 
   let err = $state("");
   const recent = $derived([...$exportsList].reverse());
@@ -28,7 +28,7 @@
       <tr>
         <th>Exported file</th>
         <th></th>
-        <th></th>
+        <th class="clearcol"><button class="clear" onclick={clearExports}>Clear list</button></th>
       </tr>
     </thead>
     <tbody>
@@ -80,6 +80,23 @@
     font-size: 0.8rem;
   }
   .link:hover {
+    text-decoration: underline;
+  }
+  .clearcol {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .clear {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 400;
+    padding: 0;
+  }
+  .clear:hover {
+    color: #fca5a5;
     text-decoration: underline;
   }
   .err {

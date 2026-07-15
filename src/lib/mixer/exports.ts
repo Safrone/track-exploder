@@ -35,6 +35,11 @@ export function addExport(rec: ExportRecord): void {
   exportsList.update((list) => [...list, rec].slice(-MAX_RECORDS));
 }
 
+/** Clear the exported-files history (does not touch the files on disk). */
+export function clearExports(): void {
+  exportsList.set([]);
+}
+
 export function getLastExportDir(): string | null {
   try {
     return localStorage.getItem(DIR_KEY);
