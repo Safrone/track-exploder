@@ -73,15 +73,24 @@ export function describeMix(state: MixerState): string {
   return active.map(cap).join("-");
 }
 
+/** The mix-descriptor suffix, e.g. " - Lead missing 85pct mono". */
+export function mixSuffix(state: MixerState): string {
+  const desc = describeMix(state);
+  const t = state.tempoEnabled ? state.tempo : 1;
+  const tempo = t !== 1 ? ` ${Math.round(t * 100)}pct` : "";
+  const mono = state.output === "mono" ? " mono" : "";
+  return ` - ${desc}${tempo}${mono}`;
+}
+
+/** Suggested base filename for an explicit song base + the current mix. */
+export function suggestBaseNameFor(songBase: string, state: MixerState): string {
+  return sanitize(`${songBase}${mixSuffix(state)}`);
+}
+
 /** Suggested export base filename (no extension), reflecting sources + options. */
 export function suggestBaseName(state: MixerState): string {
   const names = PARTS.map((p) => state.tracks[p]?.name).filter(
     (n): n is string => !!n,
   );
-  const song = commonSongBase(names);
-  const desc = describeMix(state);
-  const t = state.tempoEnabled ? state.tempo : 1;
-  const tempo = t !== 1 ? ` ${Math.round(t * 100)}pct` : "";
-  const mono = state.output === "mono" ? " mono" : "";
-  return sanitize(`${song} - ${desc}${tempo}${mono}`);
+  return suggestBaseNameFor(commonSongBase(names), state);
 }

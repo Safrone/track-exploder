@@ -10,6 +10,7 @@
   import { invokeExportMix } from "../audio/tauri";
   import ProgressBar from "./ProgressBar.svelte";
   import RecentExports from "./RecentExports.svelte";
+  import BulkExport from "./BulkExport.svelte";
 
   let format = $state<ExportFormat>("wav");
   let bitDepth = $state<BitDepth>(24);
@@ -143,6 +144,8 @@
     <button class="go" onclick={doExport} disabled={busy}>
       {busy ? "Working…" : "Export mix"}
     </button>
+
+    <BulkExport {format} {bitDepth} />
 
     {#if message && !busy}
       <span class="msg">{message}</span>

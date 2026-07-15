@@ -1,6 +1,12 @@
-import { PARTS, type OutputMode } from "../types";
+import { PARTS, type OutputMode, type Part } from "../types";
 import { effectiveGain, type MixerState } from "../mixer/store";
-import type { MixEngine } from "./engine";
+
+/** Anything that can supply stems to render (the live engine, or a bulk job). */
+export interface RenderSource {
+  ctx: BaseAudioContext;
+  duration: number;
+  getBuffer(part: Part): AudioBuffer | undefined;
+}
 
 /**
  * Interleave planar channel data into a single Float32Array.
@@ -31,12 +37,12 @@ export interface RenderedMix {
  * OfflineAudioContext + AudioWorklet path deadlocks, so we don't stretch here.
  */
 export async function renderMix(
-  engine: MixEngine,
+  source: RenderSource,
   state: MixerState,
   mode: OutputMode,
 ): Promise<RenderedMix> {
-  const sampleRate = engine.ctx.sampleRate;
-  const length = Math.max(1, Math.ceil(engine.duration * sampleRate));
+  const sampleRate = source.ctx.sampleRate;
+  const length = Math.max(1, Math.ceil(source.duration * sampleRate));
 
   const offline = new OfflineAudioContext(2, length, sampleRate);
   const master = offline.createGain();
@@ -44,7 +50,7 @@ export async function renderMix(
   master.connect(offline.destination);
 
   for (const part of PARTS) {
-    const buffer = engine.getBuffer(part);
+    const buffer = source.getBuffer(part);
     const gainValue = effectiveGain(state, part);
     if (!buffer || gainValue === 0) continue;
 

@@ -2,13 +2,15 @@ import { writable, get } from "svelte/store";
 import type { OutputMode, Part, PartMix } from "../types";
 import { mixer } from "./store";
 
-/** A user-saved mix: per-part settings plus master level and output mode. */
+/** A user-saved mix: per-part settings plus master, output, and tempo. */
 export interface UserPreset {
   id: string;
   name: string;
   mix: Record<Part, PartMix>;
   masterGain: number;
   output: OutputMode;
+  tempoEnabled: boolean;
+  tempo: number;
 }
 
 const KEY = "trackexploder.userPresets";
@@ -47,6 +49,8 @@ export function saveCurrentAsPreset(name: string): void {
     mix: structuredClone(s.mix),
     masterGain: s.masterGain,
     output: s.output,
+    tempoEnabled: s.tempoEnabled,
+    tempo: s.tempo,
   };
   userPresets.update((list) => [...list, preset]);
 }
@@ -60,6 +64,8 @@ export function applyUserPreset(id: string): void {
     mix: structuredClone(preset.mix),
     masterGain: preset.masterGain,
     output: preset.output,
+    tempoEnabled: preset.tempoEnabled ?? s.tempoEnabled,
+    tempo: preset.tempo ?? s.tempo,
   }));
 }
 
