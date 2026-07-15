@@ -96,6 +96,14 @@
     <div class="status">{status}</div>
   {/if}
 
+  <div class="mixhead">
+    <h2>Output mix</h2>
+    <p>
+      These controls define exactly what you'll hear in the preview and get in the
+      exported file — switch each part on/off, set its level, and pan it.
+    </p>
+  </div>
+
   <section class="strips">
     {#each PARTS as part (part)}
       <PartStrip {part} {onChannelChange} />
@@ -185,6 +193,16 @@
   }
   .status {
     color: var(--text-dim);
+  }
+  .mixhead h2 {
+    margin: 0 0 0.15rem;
+    font-size: 1rem;
+  }
+  .mixhead p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    max-width: 68ch;
   }
   .strips {
     display: grid;

@@ -7,6 +7,9 @@
     "core:default",
     "dialog:default",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "opener:default",
+    "opener:allow-open-path",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

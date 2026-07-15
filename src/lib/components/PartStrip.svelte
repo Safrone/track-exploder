@@ -91,6 +91,8 @@
     flex-direction: column;
     gap: 0.5rem;
     opacity: 0.6;
+    /* Prevent a long file name from stretching the grid column. */
+    min-width: 0;
   }
   .strip.loaded {
     opacity: 1;
