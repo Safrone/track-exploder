@@ -1,7 +1,14 @@
 <script lang="ts">
   import { mixer, patchState } from "../mixer/store";
-  import { getEngine, position, duration, isPlaying } from "../audio/playback";
+  import { getEngine, position, duration, isPlaying, isStretching } from "../audio/playback";
   import { resetOnDblClick } from "../actions";
+
+  // Local slider value while dragging; committed to the store on release so the
+  // stems are only re-stretched once (not on every input tick).
+  let dragTempo = $state($mixer.tempo);
+  $effect(() => {
+    dragTempo = $mixer.tempo;
+  });
 
   function fmt(sec: number): string {
     if (!isFinite(sec)) return "0:00";
@@ -23,10 +30,6 @@
 
   function seek(e: Event) {
     getEngine().seek(+(e.target as HTMLInputElement).value);
-  }
-
-  function setTempo(v: number) {
-    patchState({ tempo: v });
   }
 </script>
 
@@ -54,17 +57,20 @@
         checked={$mixer.tempoEnabled}
         onchange={(e) => patchState({ tempoEnabled: e.currentTarget.checked })}
       />
-      Tempo{$mixer.tempoEnabled ? ` ${Math.round($mixer.tempo * 100)}%` : ""}
+      Tempo{$mixer.tempoEnabled
+        ? ` ${Math.round(dragTempo * 100)}%${$isStretching ? " · preparing…" : ""}`
+        : ""}
     </label>
     <input
       type="range"
       min="0.5"
       max="1.5"
       step="0.05"
-      value={$mixer.tempo}
-      disabled={!$mixer.tempoEnabled}
+      value={dragTempo}
+      disabled={!$mixer.tempoEnabled || $isStretching}
       use:resetOnDblClick={1}
-      oninput={(e) => setTempo(+e.currentTarget.value)}
+      oninput={(e) => (dragTempo = +e.currentTarget.value)}
+      onchange={(e) => patchState({ tempo: +e.currentTarget.value })}
     />
   </div>
 

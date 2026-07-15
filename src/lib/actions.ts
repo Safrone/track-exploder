@@ -11,6 +11,7 @@ export const resetOnDblClick: Action<HTMLInputElement, number> = (node, defaultV
   const handler = () => {
     node.value = String(value);
     node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
   };
   node.addEventListener("dblclick", handler);
   return {

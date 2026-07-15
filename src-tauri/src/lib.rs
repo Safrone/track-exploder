@@ -143,6 +143,56 @@ async fn export_mix(request: Request<'_>) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+struct StretchMeta {
+    #[serde(rename = "sampleRate")]
+    sample_rate: u32,
+    /// Playback tempo (<1 = slower).
+    tempo: f32,
+}
+
+/// Pitch-preserving time-stretch of one mono stem (raw f32 request body).
+/// Returns `[sample_rate: u32 LE][frames: u32 LE][samples: f32 LE ...]`.
+#[tauri::command]
+async fn stretch_stem(request: Request<'_>) -> Result<Response, String> {
+    let meta_raw = request
+        .headers()
+        .get("x-stretch-meta")
+        .ok_or("missing x-stretch-meta header")?
+        .to_str()
+        .map_err(|e| format!("bad header encoding: {e}"))?;
+    let meta: StretchMeta =
+        serde_json::from_str(meta_raw).map_err(|e| format!("bad stretch meta: {e}"))?;
+
+    let bytes = match request.body() {
+        InvokeBody::Raw(b) => b,
+        _ => return Err("stretch_stem expects a raw ArrayBuffer body".into()),
+    };
+    if bytes.len() % 4 != 0 {
+        return Err("PCM byte length is not a multiple of 4".into());
+    }
+    let input: Vec<f32> = bytes
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+
+    let sr = meta.sample_rate;
+    let tempo = meta.tempo;
+    let out = tauri::async_runtime::spawn_blocking(move || {
+        audio_core::time_stretch(&input, 1, sr, tempo)
+    })
+    .await
+    .map_err(|e| format!("stretch task failed: {e}"))?;
+
+    let mut resp = Vec::with_capacity(8 + out.len() * 4);
+    resp.extend_from_slice(&sr.to_le_bytes());
+    resp.extend_from_slice(&(out.len() as u32).to_le_bytes());
+    for s in out {
+        resp.extend_from_slice(&s.to_le_bytes());
+    }
+    Ok(Response::new(resp))
+}
+
 /// Read a normalized set of tags from an input file.
 #[tauri::command]
 async fn read_tags(path: String) -> Result<audio_core::Tags, String> {
@@ -158,7 +208,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![decode_stem, export_mix, read_tags])
+        .invoke_handler(tauri::generate_handler![
+            decode_stem,
+            export_mix,
+            read_tags,
+            stretch_stem
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Track Exploder");
 }

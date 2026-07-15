@@ -6,6 +6,8 @@ export const position = writable(0);
 /** Longest loaded stem duration, in seconds. */
 export const duration = writable(0);
 export const isPlaying = writable(false);
+/** True while the stems are being (re)stretched for a new tempo. */
+export const isStretching = writable(false);
 
 let engine: MixEngine | null = null;
 
@@ -21,6 +23,7 @@ export function getEngine(): MixEngine {
       isPlaying.set(false);
       position.set(0);
     };
+    engine.onStretching = (active) => isStretching.set(active);
   }
   return engine;
 }

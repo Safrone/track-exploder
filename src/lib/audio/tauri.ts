@@ -45,3 +45,17 @@ export async function invokeExportMix(
 export async function invokeReadTags(path: string): Promise<Record<string, string>> {
   return (await invoke("read_tags", { path })) as Record<string, string>;
 }
+
+/**
+ * Pitch-preserving time-stretch of one mono stem. Returns raw bytes:
+ * `[sampleRate:u32 LE][frames:u32 LE][samples:f32 LE ...]`.
+ */
+export async function invokeStretchStem(
+  samples: Float32Array,
+  sampleRate: number,
+  tempo: number,
+): Promise<ArrayBuffer> {
+  return (await invoke("stretch_stem", samples.buffer as ArrayBuffer, {
+    headers: { "x-stretch-meta": JSON.stringify({ sampleRate, tempo }) },
+  })) as ArrayBuffer;
+}
