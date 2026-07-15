@@ -15,3 +15,12 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+# `tauri dev` compiles in the dev profile. Optimize dependencies (notably
+# Symphonia) and our DSP crate even there so audio decoding isn't painfully
+# slow, while keeping our own app code unoptimized for fast incremental builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.audio-core]
+opt-level = 3

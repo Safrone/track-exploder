@@ -54,7 +54,7 @@
         checked={$mixer.tempoEnabled}
         onchange={(e) => patchState({ tempoEnabled: e.currentTarget.checked })}
       />
-      Tempo{$mixer.tempoEnabled ? ` ${Math.round($mixer.tempo * 100)}% · pitch preserved` : ""}
+      Tempo{$mixer.tempoEnabled ? ` ${Math.round($mixer.tempo * 100)}%` : ""}
     </label>
     <input
       type="range"
