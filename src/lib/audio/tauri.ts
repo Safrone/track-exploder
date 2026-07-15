@@ -32,9 +32,15 @@ export async function invokeExportMix(
     channels: number;
     sampleRate: number;
     bitDepth: number;
+    tags?: Record<string, string>;
   },
 ): Promise<void> {
   await invoke("export_mix", pcm.buffer as ArrayBuffer, {
     headers: { "x-export-meta": JSON.stringify(meta) },
   });
+}
+
+/** Read a normalized set of tags (album, artist, title, …) from a source file. */
+export async function invokeReadTags(path: string): Promise<Record<string, string>> {
+  return (await invoke("read_tags", { path })) as Record<string, string>;
 }

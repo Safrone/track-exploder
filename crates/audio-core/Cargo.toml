@@ -19,9 +19,11 @@ symphonia = { version = "0.5", features = [
 ] }
 hound = "3.5"
 flacenc = "0.4"
+metaflac = "0.2"
 thiserror = "2"
 mp3lame-encoder = { version = "0.2", optional = true }
+id3 = { version = "1", optional = true }
 
 [features]
 # MP3 export links LAME (LGPL); off by default to keep the core permissive.
-mp3 = ["dep:mp3lame-encoder"]
+mp3 = ["dep:mp3lame-encoder", "dep:id3"]

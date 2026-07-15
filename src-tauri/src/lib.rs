@@ -32,6 +32,9 @@ struct ExportMeta {
     /// 16 or 24 (ignored for mp3).
     #[serde(rename = "bitDepth")]
     bit_depth: u32,
+    /// Common tags from the source files to embed in the output.
+    #[serde(default)]
+    tags: audio_core::Tags,
 }
 
 fn parse_channel(s: &str) -> Result<Channel, String> {
@@ -113,7 +116,21 @@ async fn export_mix(request: Request<'_>) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     std::fs::write(&meta.path, encoded).map_err(|e| format!("write failed: {e}"))?;
+
+    // Embed the common source tags (best-effort per format).
+    audio_core::write_tags(std::path::Path::new(&meta.path), format, &meta.tags)
+        .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Read a normalized set of tags from an input file.
+#[tauri::command]
+async fn read_tags(path: String) -> Result<audio_core::Tags, String> {
+    let path = PathBuf::from(path);
+    tauri::async_runtime::spawn_blocking(move || audio_core::read_tags(&path))
+        .await
+        .map_err(|e| format!("read_tags task failed: {e}"))?
+        .map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -121,7 +138,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![decode_stem, export_mix])
+        .invoke_handler(tauri::generate_handler![decode_stem, export_mix, read_tags])
         .run(tauri::generate_context!())
         .expect("error while running Track Exploder");
 }

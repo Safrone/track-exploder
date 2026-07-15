@@ -4,6 +4,7 @@
   import type { BitDepth, ExportFormat, OutputMode } from "../types";
   import { mixer, snapshot, patchState } from "../mixer/store";
   import { suggestBaseName } from "../mixer/naming";
+  import { partTags, computeCommon } from "../mixer/tags";
   import {
     exportsList,
     addExport,
@@ -25,6 +26,9 @@
   let message = $state("");
 
   const EXT: Record<ExportFormat, string> = { wav: "wav", flac: "flac", mp3: "mp3" };
+
+  const commonTags = $derived(computeCommon($partTags));
+  const tagKeys = $derived(Object.keys(commonTags));
 
   // Keep the suggested name in sync with sources + mix options until the user
   // types their own; then leave it alone.
@@ -76,6 +80,7 @@
         channels: rendered.channels,
         sampleRate: rendered.sampleRate,
         bitDepth,
+        tags: commonTags,
       });
 
       progress = 1;
@@ -168,6 +173,10 @@
 
   {#if busy}
     <ProgressBar value={progress} label={message} />
+  {/if}
+
+  {#if tagKeys.length > 0}
+    <div class="tags">Keeping source tags: {tagKeys.join(", ")}</div>
   {/if}
 
   {#if recent.length > 0}
@@ -283,6 +292,10 @@
   }
   .msg {
     font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .tags {
+    font-size: 0.78rem;
     color: var(--text-dim);
   }
   .exports {

@@ -219,6 +219,8 @@ version = "0.1.0"
 dependencies = [
  "flacenc",
  "hound",
+ "id3",
+ "metaflac",
  "mp3lame-encoder",
  "symphonia",
  "thiserror 2.0.18",
@@ -1744,6 +1746,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "id3"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70d6d9f23a28c6feab60d7b4a339e004809019ec9d5fd964b3f4c655ff9bc141"
+dependencies = [
+ "bitflags 2.13.0",
+ "byteorder",
+ "flate2",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2069,6 +2082,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "metaflac"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdf25a3451319c52a4a56d956475fbbb763bfb8420e2187d802485cb0fd8d965"
+dependencies = [
+ "byteorder",
+ "hex",
 ]
 
 [[package]]

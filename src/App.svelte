@@ -4,7 +4,8 @@
   import { getEngine, currentEngine } from "./lib/audio/playback";
   import { pickAndLoad, reExtractAll, basename } from "./lib/audio/load";
   import { mixEnvelope, type StereoEnvelope } from "./lib/audio/waveform";
-  import { isTauri } from "./lib/audio/tauri";
+  import { isTauri, invokeReadTags } from "./lib/audio/tauri";
+  import { clearTags, setPartTags } from "./lib/mixer/tags";
   import PartStrip from "./lib/components/PartStrip.svelte";
   import Transport from "./lib/components/Transport.svelte";
   import PresetBar from "./lib/components/PresetBar.svelte";
@@ -41,6 +42,7 @@
     }
     loading = true;
     status = "Decoding…";
+    clearTags();
     try {
       const report = await pickAndLoad(
         getEngine(),
@@ -50,6 +52,21 @@
         snapshot().sourceChannel,
       );
       currentEngine()?.applyMix(snapshot());
+
+      // Read tags from each loaded source file (for common-tag passthrough).
+      const tracks = snapshot().tracks;
+      await Promise.all(
+        report.loaded.map(async (part) => {
+          const path = tracks[part]?.path;
+          if (!path) return;
+          try {
+            setPartTags(part, await invokeReadTags(path));
+          } catch {
+            /* tags are best-effort */
+          }
+        }),
+      );
+
       status =
         report.loaded.length > 0
           ? `Loaded: ${report.loaded.join(", ")}` +

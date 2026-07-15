@@ -33,6 +33,7 @@ Extracting a clean part is therefore just **taking the isolated channel** from e
 - **Preview before export** with transport + waveform.
 - **Tempo change without pitch change** (0.5×–1.5×) for slow practice — powered by [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (MIT).
 - **Export** to WAV / FLAC (MP3 optional; see licensing note below).
+- **Keeps common tags** (album, title, date, genre, …) that all four source files share, writing them into FLAC and MP3 exports. Per-part tags like the voice name drop out automatically. (WAV tag chunks are not yet written.)
 
 ## Tech stack
 
