@@ -1,21 +1,15 @@
 <script lang="ts">
   import { save } from "@tauri-apps/plugin-dialog";
-  import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
   import type { BitDepth, ExportFormat, OutputMode } from "../types";
   import { mixer, snapshot, patchState } from "../mixer/store";
   import { suggestBaseName } from "../mixer/naming";
   import { partTags, computeCommon } from "../mixer/tags";
-  import {
-    exportsList,
-    addExport,
-    getLastExportDir,
-    setLastExportDir,
-    splitDir,
-  } from "../mixer/exports";
+  import { addExport, getLastExportDir, setLastExportDir, splitDir } from "../mixer/exports";
   import { getEngine } from "../audio/playback";
   import { renderMix } from "../audio/export";
   import { invokeExportMix } from "../audio/tauri";
   import ProgressBar from "./ProgressBar.svelte";
+  import RecentExports from "./RecentExports.svelte";
 
   let format = $state<ExportFormat>("wav");
   let bitDepth = $state<BitDepth>(24);
@@ -97,23 +91,6 @@
     }
   }
 
-  async function openFile(path: string) {
-    try {
-      await openPath(path);
-    } catch (err) {
-      message = `Could not open: ${err}`;
-    }
-  }
-
-  async function openFolder(path: string) {
-    try {
-      await revealItemInDir(path);
-    } catch (err) {
-      message = `Could not reveal: ${err}`;
-    }
-  }
-
-  const recent = $derived([...$exportsList].reverse());
 </script>
 
 <div class="export">
@@ -180,28 +157,7 @@
     <div class="tags">Keeping source tags: {tagKeys.join(", ")}</div>
   {/if}
 
-  {#if recent.length > 0}
-    <table class="exports">
-      <thead>
-        <tr>
-          <th>Exported file</th>
-          <th></th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each recent as rec (rec.path + rec.at)}
-          <tr>
-            <td class="fname" title={rec.path}>{rec.name}</td>
-            <td><button class="link" onclick={() => openFile(rec.path)}>Open</button></td>
-            <td>
-              <button class="link" onclick={() => openFolder(rec.path)}>Open folder</button>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  {/if}
+  <RecentExports />
 </div>
 
 <style>
@@ -298,40 +254,5 @@
   .tags {
     font-size: 0.78rem;
     color: var(--text-dim);
-  }
-  .exports {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-  }
-  .exports th {
-    text-align: left;
-    color: var(--text-dim);
-    font-weight: 500;
-    border-bottom: 1px solid var(--border);
-    padding: 0.3rem 0.4rem;
-  }
-  .exports td {
-    padding: 0.3rem 0.4rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .fname {
-    max-width: 0;
-    width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .link {
-    background: none;
-    border: none;
-    color: var(--accent);
-    cursor: pointer;
-    padding: 0;
-    white-space: nowrap;
-    font-size: 0.8rem;
-  }
-  .link:hover {
-    text-decoration: underline;
   }
 </style>

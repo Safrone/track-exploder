@@ -12,6 +12,8 @@
   import ExportBar from "./lib/components/ExportBar.svelte";
   import Waveform from "./lib/components/Waveform.svelte";
   import ProgressBar from "./lib/components/ProgressBar.svelte";
+  import RecentExports from "./lib/components/RecentExports.svelte";
+  import { exportsList } from "./lib/mixer/exports";
 
   const WAVE_BUCKETS = 1000;
 
@@ -191,6 +193,12 @@
         mix, preview, and export.
       </p>
     </section>
+    {#if $exportsList.length > 0}
+      <div class="panel">
+        <h2>Recent exports</h2>
+        <RecentExports />
+      </div>
+    {/if}
   {/if}
 </main>
 
