@@ -10,6 +10,8 @@
 
   const track = $derived($mixer.tracks[part]);
   const m = $derived($mixer.mix[part]);
+  // Thumb position 0..100 for the pan fill (which grows from the centre out).
+  const panPct = $derived(((m.pan + 1) / 2) * 100);
 </script>
 
 <div class="strip" class:loaded={!!track} class:muted={!!track && !m.included}>
@@ -55,11 +57,13 @@
           : `Right ${Math.round(m.pan * 100)}%`}</span
     >
     <input
+      class="pan"
       type="range"
       min="-1"
       max="1"
       step="0.02"
       value={m.pan}
+      style="--lo:{Math.min(50, panPct)}%; --hi:{Math.max(50, panPct)}%"
       use:resetOnDblClick={0}
       oninput={(e) => setPartMix(part, { pan: +e.currentTarget.value })}
     />
@@ -143,5 +147,34 @@
   .slider input {
     width: 100%;
     accent-color: var(--accent);
+  }
+  /* Pan: fill grows from the centre out toward the thumb (not from the left). */
+  .slider input.pan {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: transparent;
+    border-radius: 999px;
+  }
+  .pan::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      var(--panel-2) 0 var(--lo, 50%),
+      var(--accent) var(--lo, 50%) var(--hi, 50%),
+      var(--panel-2) var(--hi, 50%) 100%
+    );
+  }
+  .pan::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    margin-top: -3.5px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 2px solid var(--panel);
+    cursor: pointer;
   }
 </style>
