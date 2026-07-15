@@ -1,7 +1,6 @@
 import { PARTS, type OutputMode } from "../types";
 import { effectiveGain, type MixerState } from "../mixer/store";
 import type { MixEngine } from "./engine";
-import { createStretch } from "./stretch";
 
 /**
  * Interleave planar channel data into a single Float32Array.
@@ -27,11 +26,9 @@ export interface RenderedMix {
 
 /**
  * Render the current mix offline (the exact permutation shown in the UI) into
- * interleaved f32 PCM ready to hand to the native encoder.
- *
- * At 100% tempo the stems play through plain buffer sources (bit-for-bit the
- * mix). When slowed, each stem goes through a Signalsmith Stretch node so the
- * export is pitch-preserved, matching the preview.
+ * interleaved f32 PCM at natural speed. Any tempo change is applied afterward on
+ * the native side (Signalsmith Stretch in Rust) — the browser's
+ * OfflineAudioContext + AudioWorklet path deadlocks, so we don't stretch here.
  */
 export async function renderMix(
   engine: MixEngine,
@@ -39,12 +36,7 @@ export async function renderMix(
   mode: OutputMode,
 ): Promise<RenderedMix> {
   const sampleRate = engine.ctx.sampleRate;
-  const tempo = state.tempoEnabled ? state.tempo : 1;
-  const stretched = tempo !== 1;
-  const durationSeconds = engine.duration / tempo;
-  // Give the stretch algorithm a little tail to flush.
-  const tail = stretched ? 0.5 : 0;
-  const length = Math.max(1, Math.ceil((durationSeconds + tail) * sampleRate));
+  const length = Math.max(1, Math.ceil(engine.duration * sampleRate));
 
   const offline = new OfflineAudioContext(2, length, sampleRate);
   const master = offline.createGain();
@@ -63,17 +55,10 @@ export async function renderMix(
     gain.connect(pan);
     pan.connect(master);
 
-    if (stretched) {
-      const node = await createStretch(offline);
-      node.addBuffers([buffer.getChannelData(0).slice()]);
-      node.connect(gain);
-      node.start(0, 0, undefined, tempo, 0);
-    } else {
-      const src = offline.createBufferSource();
-      src.buffer = buffer;
-      src.connect(gain);
-      src.start(0);
-    }
+    const src = offline.createBufferSource();
+    src.buffer = buffer;
+    src.connect(gain);
+    src.start(0);
   }
 
   const rendered = await offline.startRendering();

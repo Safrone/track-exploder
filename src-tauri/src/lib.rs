@@ -35,6 +35,13 @@ struct ExportMeta {
     /// Common tags from the source files to embed in the output.
     #[serde(default)]
     tags: audio_core::Tags,
+    /// Playback tempo (<1 = slower). Pitch-preserving stretch applied if != 1.
+    #[serde(default = "default_tempo")]
+    tempo: f32,
+}
+
+fn default_tempo() -> f32 {
+    1.0
 }
 
 fn parse_channel(s: &str) -> Result<Channel, String> {
@@ -111,9 +118,22 @@ async fn export_mix(request: Request<'_>) -> Result<(), String> {
         16 => BitDepth::Sixteen,
         _ => BitDepth::TwentyFour,
     };
+    let channels = meta.channels;
+    let sample_rate = meta.sample_rate;
+    let tempo = meta.tempo;
 
-    let encoded = encode_interleaved(&samples, meta.channels, meta.sample_rate, format, bit_depth)
-        .map_err(|e| e.to_string())?;
+    // Stretch (if slowed) + encode are CPU-bound; keep them off the async thread.
+    let encoded = tauri::async_runtime::spawn_blocking(move || {
+        let samples = if (tempo - 1.0).abs() > 1e-4 {
+            audio_core::time_stretch(&samples, channels, sample_rate, tempo)
+        } else {
+            samples
+        };
+        encode_interleaved(&samples, channels, sample_rate, format, bit_depth)
+    })
+    .await
+    .map_err(|e| format!("export task failed: {e}"))?
+    .map_err(|e| e.to_string())?;
 
     std::fs::write(&meta.path, encoded).map_err(|e| format!("write failed: {e}"))?;
 

@@ -20,6 +20,7 @@ symphonia = { version = "0.5", features = [
 hound = "3.5"
 flacenc = "0.4"
 metaflac = "0.2"
+signalsmith-stretch = "0.1"
 thiserror = "2"
 mp3lame-encoder = { version = "0.2", optional = true }
 id3 = { version = "1", optional = true }

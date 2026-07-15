@@ -81,6 +81,7 @@
         sampleRate: rendered.sampleRate,
         bitDepth,
         tags: commonTags,
+        tempo: state.tempoEnabled ? state.tempo : 1,
       });
 
       progress = 1;

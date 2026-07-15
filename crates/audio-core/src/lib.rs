@@ -12,8 +12,10 @@ pub mod decode;
 pub mod encode;
 pub mod extract;
 pub mod metadata;
+pub mod stretch;
 
 pub use decode::{decode_file, DecodeError, DecodedAudio};
 pub use encode::{encode_interleaved, BitDepth, EncodeError, ExportFormat};
 pub use extract::{extract_channel, Channel};
 pub use metadata::{read_tags, write_tags, TagError, Tags};
+pub use stretch::time_stretch;

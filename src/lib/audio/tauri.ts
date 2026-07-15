@@ -33,6 +33,7 @@ export async function invokeExportMix(
     sampleRate: number;
     bitDepth: number;
     tags?: Record<string, string>;
+    tempo?: number;
   },
 ): Promise<void> {
   await invoke("export_mix", pcm.buffer as ArrayBuffer, {
