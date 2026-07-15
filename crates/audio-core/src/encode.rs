@@ -164,6 +164,7 @@ fn encode_mp3(samples: &[f32], channels: u16, sample_rate: u32) -> Result<Vec<u8
         album: b"",
         year: b"",
         comment: b"Track Exploder",
+        album_art: b"",
     });
     let mut encoder = builder
         .build()
@@ -227,5 +228,20 @@ mod tests {
         let bytes = encode_interleaved(&samples, 1, 44_100, ExportFormat::Flac, BitDepth::Sixteen)
             .expect("flac encode");
         assert_eq!(&bytes[0..4], b"fLaC");
+    }
+
+    #[cfg(feature = "mp3")]
+    #[test]
+    fn mp3_produces_a_frame() {
+        let samples: Vec<f32> = (0..44_100)
+            .map(|i| ((i as f32) * 0.05).sin() * 0.5)
+            .collect();
+        let bytes = encode_interleaved(&samples, 1, 44_100, ExportFormat::Mp3, BitDepth::Sixteen)
+            .expect("mp3 encode");
+        assert!(!bytes.is_empty());
+        // MP3 stream begins with an ID3 tag ("ID3") or an MPEG frame sync (0xFF 0xEx).
+        let starts_with_id3 = bytes.starts_with(b"ID3");
+        let starts_with_sync = bytes.len() >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0;
+        assert!(starts_with_id3 || starts_with_sync, "not an MP3 stream");
     }
 }

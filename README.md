@@ -79,7 +79,25 @@ npm run tauri build
 
 Track Exploder is **MIT** licensed. The time-stretch library (Signalsmith Stretch) is also MIT.
 
-MP3 export is an **optional** feature that links LAME (LGPL); it is disabled by default to keep the core dependency graph permissive. Build with `--features mp3` to enable it, and comply with the LGPL for that component if you redistribute such a build. WAV and FLAC export have no such restriction.
+MP3 export is an **optional** feature that links LAME (LGPL); it is disabled by default to keep the core dependency graph permissive. WAV and FLAC export have no such restriction.
+
+To enable MP3:
+
+```bash
+npm run tauri dev   -- --features mp3   # dev
+npm run tauri build -- --features mp3   # release
+cargo test -p audio-core --features mp3 # tests
+```
+
+The `mp3lame-sys` crate compiles a bundled copy of LAME from source, so a **C/C++ toolchain** is required (it is *not* needed for the default build):
+
+- Debian/Ubuntu: `sudo apt install build-essential`
+- openSUSE: `sudo zypper install gcc-c++` (gcc/make/autotools are usually already present)
+- macOS: Xcode command-line tools; Windows: MSVC build tools
+
+On distros that default to a `lib64` library path (openSUSE, Fedora), autoconf would otherwise install `libmp3lame.a` where the linker can't find it; the repo's `.cargo/config.toml` sets `CONFIG_SITE=/dev/null` to keep the build on the standard `lib` layout, so this works transparently.
+
+If you redistribute an MP3-enabled build, comply with the LGPL for that component.
 
 **Do not** commit copyrighted learning tracks to this repository. The `samples/` directory is git-ignored for your local test audio.
 
