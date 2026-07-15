@@ -47,7 +47,17 @@ describe("commonSongBase", () => {
 
 describe("describeMix", () => {
   it("names a solo", () => {
-    expect(describeMix(state({ mix: { bass: { soloed: true } } }))).toBe("Bass solo");
+    expect(
+      describeMix(
+        state({
+          mix: {
+            tenor: { included: false },
+            lead: { included: false },
+            baritone: { included: false },
+          },
+        }),
+      ),
+    ).toBe("Bass solo");
   });
 
   it("names a part-off mix", () => {

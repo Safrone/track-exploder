@@ -14,12 +14,14 @@
   import { getEngine } from "../audio/playback";
   import { renderMix } from "../audio/export";
   import { invokeExportMix } from "../audio/tauri";
+  import ProgressBar from "./ProgressBar.svelte";
 
   let format = $state<ExportFormat>("wav");
   let bitDepth = $state<BitDepth>(24);
   let name = $state("");
   let nameEdited = $state(false);
   let busy = $state(false);
+  let progress = $state(0);
   let message = $state("");
 
   const EXT: Record<ExportFormat, string> = { wav: "wav", flac: "flac", mp3: "mp3" };
@@ -42,8 +44,6 @@
 
   async function doExport() {
     const state = snapshot();
-    busy = true;
-    message = "Rendering…";
     try {
       const fileName = `${(name.trim() || "mix")}.${EXT[format]}`;
       const lastDir = getLastExportDir();
@@ -59,12 +59,16 @@
         filters: [{ name: format.toUpperCase(), extensions: [EXT[format]] }],
       });
       if (!path) {
-        busy = false;
         message = "";
         return;
       }
 
+      busy = true;
+      progress = 0.15;
+      message = "Rendering…";
       const rendered = await renderMix(getEngine(), state, state.output);
+
+      progress = 0.6;
       message = "Encoding…";
       await invokeExportMix(rendered.pcm, {
         path,
@@ -74,6 +78,7 @@
         bitDepth,
       });
 
+      progress = 1;
       const { dir } = splitDir(path);
       if (dir) setLastExportDir(dir);
       addExport({ path, name: basename(path), format, at: Date.now() });
@@ -82,6 +87,7 @@
       message = `Export failed: ${err}`;
     } finally {
       busy = false;
+      progress = 0;
     }
   }
 
@@ -155,10 +161,14 @@
       {busy ? "Working…" : "Export mix"}
     </button>
 
-    {#if message}
+    {#if message && !busy}
       <span class="msg">{message}</span>
     {/if}
   </div>
+
+  {#if busy}
+    <ProgressBar value={progress} label={message} />
+  {/if}
 
   {#if recent.length > 0}
     <table class="exports">

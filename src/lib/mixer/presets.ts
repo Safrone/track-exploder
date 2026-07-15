@@ -74,7 +74,7 @@ export function applyPreset(id: string, focus: Part): void {
     for (const p of PARTS) {
       const cfg = partial[p];
       if (cfg) {
-        mix[p] = { ...mix[p], ...cfg, muted: false, soloed: false };
+        mix[p] = { ...mix[p], ...cfg };
       }
     }
     return { ...s, mix };

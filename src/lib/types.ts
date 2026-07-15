@@ -18,14 +18,12 @@ export interface SourceTrack {
 
 /** Per-part mixer settings. */
 export interface PartMix {
-  /** Included in the output at all. */
+  /** Audible in the output. `false` = muted (the single per-part on/off). */
   included: boolean;
   /** Linear gain (0..~2). 1 = unity. */
   gain: number;
   /** Stereo pan, -1 (hard left) .. +1 (hard right). */
   pan: number;
-  muted: boolean;
-  soloed: boolean;
 }
 
 export type OutputMode = "stereo" | "mono";
@@ -33,5 +31,5 @@ export type ExportFormat = "wav" | "flac" | "mp3";
 export type BitDepth = 16 | 24;
 
 export function defaultPartMix(): PartMix {
-  return { included: true, gain: 1, pan: 0, muted: false, soloed: false };
+  return { included: true, gain: 1, pan: 0 };
 }

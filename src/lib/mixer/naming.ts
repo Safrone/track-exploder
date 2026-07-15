@@ -1,5 +1,5 @@
 import { PARTS, type Part } from "../types";
-import { anySoloed, type MixerState } from "./store";
+import type { MixerState } from "./store";
 
 function stripExt(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -43,15 +43,9 @@ export function commonSongBase(names: string[]): string {
   return base.length >= 3 ? base : sanitize(bare[0]) || "mix";
 }
 
-/** The parts that are actually audible given include/mute/solo. */
+/** The parts that are actually audible (not muted). */
 function activeParts(state: MixerState): Part[] {
-  const soloing = anySoloed(state);
-  return PARTS.filter((p) => {
-    const m = state.mix[p];
-    if (!m.included || m.muted) return false;
-    if (soloing && !m.soloed) return false;
-    return true;
-  });
+  return PARTS.filter((p) => state.mix[p].included);
 }
 
 /** A short human description of the current mix (e.g. "Lead off", "Bass solo"). */

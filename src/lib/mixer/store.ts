@@ -41,20 +41,12 @@ export const mixer = writable<MixerState>(initialState());
 /** True once all four parts have a loaded source track. */
 export const allLoaded = derived(mixer, ($m) => PARTS.every((p) => !!$m.tracks[p]));
 
-/** Whether any part is currently soloed (affects effective gains). */
-export function anySoloed(state: MixerState): boolean {
-  return PARTS.some((p) => state.mix[p].soloed);
-}
-
 /**
- * Effective linear gain for a part, accounting for include/mute/solo.
- * Returns 0 when the part should be silent.
+ * Effective linear gain for a part. Returns 0 when the part is muted.
  */
 export function effectiveGain(state: MixerState, part: Part): number {
   const m = state.mix[part];
-  if (!m.included || m.muted) return 0;
-  if (anySoloed(state) && !m.soloed) return 0;
-  return m.gain;
+  return m.included ? m.gain : 0;
 }
 
 // --- mutators ---------------------------------------------------------------

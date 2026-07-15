@@ -57,26 +57,42 @@ export interface LoadReport {
   unassigned: string[];
 }
 
+/** Progress callback: `done` of `total` files decoded; `part` is the one just finished. */
+export type LoadProgress = (done: number, total: number, part: Part) => void;
+
 /**
  * Pick files, guess each part from its filename, and decode the matched ones
- * (default channel: left). Returns which parts loaded and any files that
- * couldn't be auto-assigned.
+ * (default channel: left). Reports progress as each file finishes decoding.
+ * Returns which parts loaded and any files that couldn't be auto-assigned.
  */
-export async function pickAndLoad(engine: MixEngine): Promise<LoadReport> {
+export async function pickAndLoad(
+  engine: MixEngine,
+  onProgress?: LoadProgress,
+): Promise<LoadReport> {
   const paths = await pickAudioFiles();
-  const loaded: Part[] = [];
+
+  // Resolve part assignments up front so we know the total to decode.
+  const assignments: { part: Part; path: string }[] = [];
   const unassigned: string[] = [];
   const taken = new Set<Part>();
-
   for (const path of paths) {
     const guess = guessPart(basename(path));
     if (guess && !taken.has(guess)) {
       taken.add(guess);
-      await loadPart(engine, guess, path, "left");
-      loaded.push(guess);
+      assignments.push({ part: guess, path });
     } else {
       unassigned.push(path);
     }
+  }
+
+  const loaded: Part[] = [];
+  const total = assignments.length;
+  for (let i = 0; i < total; i++) {
+    const { part, path } = assignments[i];
+    onProgress?.(i, total, part);
+    await loadPart(engine, part, path, "left");
+    loaded.push(part);
+    onProgress?.(i + 1, total, part);
   }
   return { loaded, unassigned };
 }

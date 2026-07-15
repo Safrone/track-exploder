@@ -12,7 +12,7 @@
   const m = $derived($mixer.mix[part]);
 </script>
 
-<div class="strip" class:loaded={!!track}>
+<div class="strip" class:loaded={!!track} class:muted={!!track && !m.included}>
   <div class="head">
     <span class="name">{part}</span>
     {#if track}
@@ -35,25 +35,14 @@
       </select>
     </label>
 
-    <label class="toggle">
-      <input
-        type="checkbox"
-        checked={m.included}
-        onchange={(e) => setPartMix(part, { included: e.currentTarget.checked })}
-      />
-      on
-    </label>
-
     <button
-      class="chip"
-      class:active={m.soloed}
-      onclick={() => setPartMix(part, { soloed: !m.soloed })}>S</button
+      class="mute"
+      class:active={!m.included}
+      aria-pressed={!m.included}
+      onclick={() => setPartMix(part, { included: !m.included })}
     >
-    <button
-      class="chip"
-      class:active={m.muted}
-      onclick={() => setPartMix(part, { muted: !m.muted })}>M</button
-    >
+      {m.included ? "Mute" : "Muted"}
+    </button>
   </div>
 
   <label class="slider">
@@ -97,6 +86,12 @@
   .strip.loaded {
     opacity: 1;
   }
+  .strip.muted .name {
+    color: var(--text-dim);
+  }
+  .strip.muted {
+    border-color: #5b2626;
+  }
   .head {
     display: flex;
     flex-direction: column;
@@ -130,27 +125,24 @@
     border-radius: 6px;
     padding: 0.1rem 0.2rem;
   }
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    font-size: 0.8rem;
+  .mute {
     margin-left: auto;
-  }
-  .chip {
-    width: 26px;
-    height: 26px;
+    padding: 0.25rem 0.7rem;
     border-radius: 6px;
     border: 1px solid var(--border);
     background: var(--panel-2);
     color: var(--text-dim);
     cursor: pointer;
-    font-weight: 700;
+    font-size: 0.8rem;
+    font-weight: 600;
   }
-  .chip.active {
-    background: var(--accent);
-    color: #05221a;
-    border-color: var(--accent);
+  .mute:hover {
+    color: var(--text);
+  }
+  .mute.active {
+    background: #7f1d1d;
+    border-color: #b91c1c;
+    color: #fecaca;
   }
   .slider {
     display: flex;

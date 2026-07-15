@@ -9,9 +9,11 @@
   import PresetBar from "./lib/components/PresetBar.svelte";
   import ExportBar from "./lib/components/ExportBar.svelte";
   import Waveform from "./lib/components/Waveform.svelte";
+  import ProgressBar from "./lib/components/ProgressBar.svelte";
 
   let loading = $state(false);
   let status = $state("");
+  let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
   let waveBuffer = $state<AudioBuffer | undefined>(undefined);
   const tauri = isTauri();
 
@@ -38,7 +40,9 @@
     loading = true;
     status = "Decoding…";
     try {
-      const report = await pickAndLoad(getEngine());
+      const report = await pickAndLoad(getEngine(), (done, total, part) => {
+        loadProgress = { done, total, part };
+      });
       currentEngine()?.applyMix(snapshot());
       refreshWave();
       status =
@@ -52,6 +56,7 @@
       status = `Load failed: ${err}`;
     } finally {
       loading = false;
+      loadProgress = null;
     }
   }
 
@@ -92,7 +97,12 @@
     </div>
   {/if}
 
-  {#if status}
+  {#if loadProgress}
+    <ProgressBar
+      value={loadProgress.total ? loadProgress.done / loadProgress.total : 0}
+      label={`Decoding ${loadProgress.part} · ${loadProgress.done}/${loadProgress.total}`}
+    />
+  {:else if status}
     <div class="status">{status}</div>
   {/if}
 

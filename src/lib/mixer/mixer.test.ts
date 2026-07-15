@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PARTS, defaultPartMix, type Part, type PartMix } from "../types";
-import { effectiveGain, anySoloed, type MixerState } from "./store";
+import { effectiveGain, type MixerState } from "./store";
 import { interleave } from "../audio/export";
 
 function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerState {
@@ -18,26 +18,14 @@ function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerSta
 }
 
 describe("effectiveGain", () => {
-  it("returns the set gain when included and un-muted", () => {
+  it("returns the set gain when the part is audible", () => {
     const s = stateWith({ lead: { gain: 0.8 } });
     expect(effectiveGain(s, "lead")).toBe(0.8);
   });
 
-  it("is 0 when the part is excluded", () => {
+  it("is 0 when the part is muted (not included)", () => {
     const s = stateWith({ bass: { included: false, gain: 1 } });
     expect(effectiveGain(s, "bass")).toBe(0);
-  });
-
-  it("is 0 when muted", () => {
-    const s = stateWith({ tenor: { muted: true } });
-    expect(effectiveGain(s, "tenor")).toBe(0);
-  });
-
-  it("silences non-soloed parts when any part is soloed", () => {
-    const s = stateWith({ baritone: { soloed: true } });
-    expect(anySoloed(s)).toBe(true);
-    expect(effectiveGain(s, "baritone")).toBe(1);
-    expect(effectiveGain(s, "lead")).toBe(0);
   });
 });
 
