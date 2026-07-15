@@ -61,7 +61,7 @@ describe("describeMix", () => {
   });
 
   it("names a part-off mix", () => {
-    expect(describeMix(state({ mix: { lead: { included: false } } }))).toBe("Lead off");
+    expect(describeMix(state({ mix: { lead: { included: false } } }))).toBe("no Lead");
   });
 
   it("detects a predominant part", () => {
@@ -92,7 +92,7 @@ describe("suggestBaseName", () => {
       tempo: 0.85,
       output: "mono",
     });
-    expect(suggestBaseName(s)).toBe("01 Lets Burn Up the Town [C] - Lead off 85pct mono");
+    expect(suggestBaseName(s)).toBe("01 Lets Burn Up the Town [C] - no Lead 85pct mono");
   });
 
   it("has no filesystem-invalid characters", () => {

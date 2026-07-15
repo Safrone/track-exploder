@@ -67,7 +67,7 @@ export function describeMix(state: MixerState): string {
 
   if (active.length === PARTS.length - 1) {
     const missing = PARTS.find((p) => !active.includes(p));
-    if (missing) return `${cap(missing)} off`;
+    if (missing) return `no ${cap(missing)}`;
   }
 
   return active.map(cap).join("-");
