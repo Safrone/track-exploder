@@ -47,7 +47,13 @@
   </label>
 
   <label class="slider">
-    <span>Pan {m.pan === 0 ? "C" : m.pan < 0 ? `L${Math.round(-m.pan * 100)}` : `R${Math.round(m.pan * 100)}`}</span>
+    <span
+      >Pan {m.pan === 0
+        ? "Center"
+        : m.pan < 0
+          ? `Left ${Math.round(-m.pan * 100)}%`
+          : `Right ${Math.round(m.pan * 100)}%`}</span
+    >
     <input
       type="range"
       min="-1"
