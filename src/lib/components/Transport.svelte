@@ -1,0 +1,130 @@
+<script lang="ts">
+  import { mixer, patchState } from "../mixer/store";
+  import { getEngine, position, duration, isPlaying } from "../audio/playback";
+
+  function fmt(sec: number): string {
+    if (!isFinite(sec)) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  async function toggle() {
+    const engine = getEngine();
+    if ($isPlaying) {
+      engine.pause();
+      isPlaying.set(false);
+    } else {
+      await engine.play();
+      isPlaying.set(true);
+    }
+  }
+
+  function seek(e: Event) {
+    getEngine().seek(+(e.target as HTMLInputElement).value);
+  }
+
+  function setTempo(v: number) {
+    patchState({ tempo: v });
+  }
+</script>
+
+<div class="transport">
+  <button class="play" onclick={toggle} aria-label={$isPlaying ? "Pause" : "Play"}>
+    {$isPlaying ? "❚❚" : "►"}
+  </button>
+
+  <span class="time">{fmt($position)}</span>
+  <input
+    class="scrub"
+    type="range"
+    min="0"
+    max={$duration || 0}
+    step="0.01"
+    value={$position}
+    oninput={seek}
+  />
+  <span class="time">{fmt($duration)}</span>
+
+  <div class="tempo">
+    <span>Tempo {Math.round($mixer.tempo * 100)}%</span>
+    <input
+      type="range"
+      min="0.5"
+      max="1.5"
+      step="0.05"
+      value={$mixer.tempo}
+      oninput={(e) => setTempo(+e.currentTarget.value)}
+    />
+    <label class="pp" title="Preserve pitch when changing tempo (requires stretch worklet)">
+      <input
+        type="checkbox"
+        checked={$mixer.preservePitch}
+        onchange={(e) => patchState({ preservePitch: e.currentTarget.checked })}
+      />
+      keep pitch
+    </label>
+  </div>
+
+  <label class="master">
+    <span>Master {Math.round($mixer.masterGain * 100)}%</span>
+    <input
+      type="range"
+      min="0"
+      max="1.5"
+      step="0.01"
+      value={$mixer.masterGain}
+      oninput={(e) => patchState({ masterGain: +e.currentTarget.value })}
+    />
+  </label>
+</div>
+
+<style>
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+    flex-wrap: wrap;
+  }
+  .play {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #05221a;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+  .time {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    min-width: 3ch;
+  }
+  .scrub {
+    flex: 1 1 200px;
+    accent-color: var(--accent);
+  }
+  .tempo,
+  .master {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    gap: 0.15rem;
+    min-width: 130px;
+  }
+  .tempo input[type="range"],
+  .master input {
+    accent-color: var(--accent);
+  }
+  .pp {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+</style>

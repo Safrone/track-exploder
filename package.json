@@ -1,0 +1,30 @@
+{
+  "name": "track-exploder",
+  "version": "0.1.0",
+  "description": "Extract and remix barbershop 'part-predominant' learning tracks: isolate each voice from part-left/right stereo tracks, build any mix, preview, change tempo without pitch, and export.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.1.0",
+    "@tauri-apps/cli": "^2.9.0",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^5.39.0",
+    "svelte-check": "^4.3.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.3.0",
+    "vitest": "^3.2.0"
+  }
+}

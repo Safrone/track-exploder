@@ -1,0 +1,55 @@
+import { describe, it, expect } from "vitest";
+import { PARTS, defaultPartMix, type Part, type PartMix } from "../types";
+import { effectiveGain, anySoloed, type MixerState } from "./store";
+import { interleave } from "../audio/export";
+
+function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerState {
+  const mix = Object.fromEntries(
+    PARTS.map((p) => [p, { ...defaultPartMix(), ...(overrides[p] ?? {}) }]),
+  ) as Record<Part, PartMix>;
+  return {
+    tracks: {},
+    mix,
+    masterGain: 1,
+    tempo: 1,
+    preservePitch: true,
+    output: "stereo",
+  };
+}
+
+describe("effectiveGain", () => {
+  it("returns the set gain when included and un-muted", () => {
+    const s = stateWith({ lead: { gain: 0.8 } });
+    expect(effectiveGain(s, "lead")).toBe(0.8);
+  });
+
+  it("is 0 when the part is excluded", () => {
+    const s = stateWith({ bass: { included: false, gain: 1 } });
+    expect(effectiveGain(s, "bass")).toBe(0);
+  });
+
+  it("is 0 when muted", () => {
+    const s = stateWith({ tenor: { muted: true } });
+    expect(effectiveGain(s, "tenor")).toBe(0);
+  });
+
+  it("silences non-soloed parts when any part is soloed", () => {
+    const s = stateWith({ baritone: { soloed: true } });
+    expect(anySoloed(s)).toBe(true);
+    expect(effectiveGain(s, "baritone")).toBe(1);
+    expect(effectiveGain(s, "lead")).toBe(0);
+  });
+});
+
+describe("interleave", () => {
+  it("passes through a single channel unchanged", () => {
+    const mono = new Float32Array([0.1, 0.2, 0.3]);
+    expect(interleave([mono])).toBe(mono);
+  });
+
+  it("interleaves stereo frame by frame", () => {
+    const l = new Float32Array([1, 3, 5]);
+    const r = new Float32Array([2, 4, 6]);
+    expect(Array.from(interleave([l, r]))).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+});

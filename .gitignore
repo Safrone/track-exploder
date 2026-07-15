@@ -1,0 +1,29 @@
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Rust / Tauri
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# Generated Tauri build artifacts (keep source icons, ignore nothing else here for now)
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Test / scratch audio (don't commit copyrighted learning tracks)
+/samples/*.wav
+/samples/*.mp3
+/samples/*.m4a
+/samples/*.flac
+!/samples/README.md

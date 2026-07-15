@@ -1,0 +1,27 @@
+[package]
+name = "audio-core"
+description = "Pure-Rust audio DSP for Track Exploder: decode, channel extraction, and encode. No GUI dependencies."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+symphonia = { version = "0.5", features = [
+    "mp3",
+    "aac",
+    "isomp4",
+    "flac",
+    "wav",
+    "pcm",
+    "ogg",
+    "vorbis",
+] }
+hound = "3.5"
+flacenc = "0.4"
+thiserror = "2"
+mp3lame-encoder = { version = "0.2", optional = true }
+
+[features]
+# MP3 export links LAME (LGPL); off by default to keep the core permissive.
+mp3 = ["dep:mp3lame-encoder"]

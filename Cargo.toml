@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/audio-core", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/enertiv/track_exploder"
+
+[profile.release]
+# Smaller, faster binaries for distribution.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
