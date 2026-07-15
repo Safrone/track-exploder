@@ -1,12 +1,11 @@
 <script lang="ts">
-  import type { Channel, Part } from "../types";
+  import type { Part } from "../types";
   import { mixer, setPartMix } from "../mixer/store";
 
   interface Props {
     part: Part;
-    onChannelChange: (part: Part, channel: Channel) => void;
   }
-  let { part, onChannelChange }: Props = $props();
+  let { part }: Props = $props();
 
   const track = $derived($mixer.tracks[part]);
   const m = $derived($mixer.mix[part]);
@@ -23,18 +22,6 @@
   </div>
 
   <div class="row">
-    <label class="chan">
-      Ch
-      <select
-        value={track?.channel ?? "left"}
-        disabled={!track}
-        onchange={(e) => onChannelChange(part, e.currentTarget.value as Channel)}
-      >
-        <option value="left">Left</option>
-        <option value="right">Right</option>
-      </select>
-    </label>
-
     <button
       class="mute"
       class:active={!m.included}
@@ -117,13 +104,6 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-  }
-  .chan select {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.1rem 0.2rem;
   }
   .mute {
     margin-left: auto;

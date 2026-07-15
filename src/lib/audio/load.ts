@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { PARTS, type Channel, type Part } from "../types";
+import { PARTS, type Channel, type Part, type SourceTrack } from "../types";
 import { setTrack } from "../mixer/store";
 import { decodeStem } from "./decode";
 import type { MixEngine } from "./engine";
@@ -68,6 +68,7 @@ export type LoadProgress = (done: number, total: number, part: Part) => void;
 export async function pickAndLoad(
   engine: MixEngine,
   onProgress?: LoadProgress,
+  channel: Channel = "left",
 ): Promise<LoadReport> {
   const paths = await pickAudioFiles();
 
@@ -90,9 +91,25 @@ export async function pickAndLoad(
   for (let i = 0; i < total; i++) {
     const { part, path } = assignments[i];
     onProgress?.(i, total, part);
-    await loadPart(engine, part, path, "left");
+    await loadPart(engine, part, path, channel);
     loaded.push(part);
     onProgress?.(i + 1, total, part);
   }
   return { loaded, unassigned };
+}
+
+/** Re-extract every already-loaded track from the given channel (with progress). */
+export async function reExtractAll(
+  engine: MixEngine,
+  tracks: Partial<Record<Part, SourceTrack>>,
+  channel: Channel,
+  onProgress?: LoadProgress,
+): Promise<void> {
+  const parts = PARTS.filter((p) => tracks[p]);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    onProgress?.(i, parts.length, part);
+    await loadPart(engine, part, tracks[part]!.path, channel);
+    onProgress?.(i + 1, parts.length, part);
+  }
 }

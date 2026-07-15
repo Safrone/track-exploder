@@ -14,6 +14,7 @@ function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerSta
     tempo: 1,
     preservePitch: true,
     output: "stereo",
+    sourceChannel: "left",
   };
 }
 

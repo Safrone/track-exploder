@@ -1,8 +1,9 @@
 <script lang="ts">
   import { PARTS, type Channel, type Part } from "./lib/types";
-  import { mixer, allLoaded, snapshot } from "./lib/mixer/store";
+  import { mixer, allLoaded, snapshot, patchState } from "./lib/mixer/store";
   import { getEngine, currentEngine } from "./lib/audio/playback";
-  import { pickAndLoad, loadPart, basename } from "./lib/audio/load";
+  import { pickAndLoad, reExtractAll, basename } from "./lib/audio/load";
+  import { mixEnvelope, type StereoEnvelope } from "./lib/audio/waveform";
   import { isTauri } from "./lib/audio/tauri";
   import PartStrip from "./lib/components/PartStrip.svelte";
   import Transport from "./lib/components/Transport.svelte";
@@ -11,26 +12,27 @@
   import Waveform from "./lib/components/Waveform.svelte";
   import ProgressBar from "./lib/components/ProgressBar.svelte";
 
+  const WAVE_BUCKETS = 1000;
+
   let loading = $state(false);
   let status = $state("");
   let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
-  let waveBuffer = $state<AudioBuffer | undefined>(undefined);
+  let envelope = $state<StereoEnvelope | null>(null);
   const tauri = isTauri();
 
-  // Push mixer changes into the audio engine (only once it exists).
+  const hasTracks = $derived(PARTS.some((p) => !!$mixer.tracks[p]));
+
+  // Push mixer changes into the engine and regenerate the stereo waveform
+  // whenever the mix or the loaded stems change.
   $effect(() => {
     const state = $mixer;
-    currentEngine()?.applyMix(state);
-  });
-
-  function refreshWave() {
     const engine = currentEngine();
     if (!engine) return;
-    waveBuffer =
-      engine.getBuffer("lead") ??
-      PARTS.map((p) => engine.getBuffer(p)).find((b) => b) ??
-      undefined;
-  }
+    engine.applyMix(state);
+    envelope = PARTS.some((p) => engine.hasBuffer(p))
+      ? mixEnvelope(engine, state, WAVE_BUCKETS)
+      : null;
+  });
 
   async function onLoad() {
     if (!tauri) {
@@ -40,11 +42,14 @@
     loading = true;
     status = "Decoding…";
     try {
-      const report = await pickAndLoad(getEngine(), (done, total, part) => {
-        loadProgress = { done, total, part };
-      });
+      const report = await pickAndLoad(
+        getEngine(),
+        (done, total, part) => {
+          loadProgress = { done, total, part };
+        },
+        snapshot().sourceChannel,
+      );
       currentEngine()?.applyMix(snapshot());
-      refreshWave();
       status =
         report.loaded.length > 0
           ? `Loaded: ${report.loaded.join(", ")}` +
@@ -60,18 +65,27 @@
     }
   }
 
-  async function onChannelChange(part: Part, channel: Channel) {
+  async function setSourceChannel(channel: Channel) {
+    if (channel === $mixer.sourceChannel) return;
+    patchState({ sourceChannel: channel });
+
     const engine = currentEngine();
-    const track = $mixer.tracks[part];
-    if (!engine || !track) return;
-    status = `Re-extracting ${part} (${channel})…`;
+    const tracks = snapshot().tracks;
+    if (!engine || !PARTS.some((p) => tracks[p])) return;
+
+    loading = true;
+    status = "Re-extracting…";
     try {
-      await loadPart(engine, part, track.path, channel);
+      await reExtractAll(engine, tracks, channel, (done, total, part) => {
+        loadProgress = { done, total, part };
+      });
       engine.applyMix(snapshot());
-      refreshWave();
-      status = `${part}: using ${channel} channel`;
+      status = `Isolated part read from ${channel} channel`;
     } catch (err) {
       status = `Re-extract failed: ${err}`;
+    } finally {
+      loading = false;
+      loadProgress = null;
     }
   }
 </script>
@@ -106,6 +120,25 @@
     <div class="status">{status}</div>
   {/if}
 
+  {#if hasTracks}
+    <div class="sourcechan">
+      <span class="lbl">Isolated part is on:</span>
+      <div class="seg">
+        <button
+          class:active={$mixer.sourceChannel === "left"}
+          disabled={loading}
+          onclick={() => setSourceChannel("left")}>Left</button
+        >
+        <button
+          class:active={$mixer.sourceChannel === "right"}
+          disabled={loading}
+          onclick={() => setSourceChannel("right")}>Right</button
+        >
+      </div>
+      <span class="hint">All files in a learning-track set share the same side.</span>
+    </div>
+  {/if}
+
   <div class="mixhead">
     <h2>Output mix</h2>
     <p>
@@ -116,13 +149,13 @@
 
   <section class="strips">
     {#each PARTS as part (part)}
-      <PartStrip {part} {onChannelChange} />
+      <PartStrip {part} />
     {/each}
   </section>
 
-  {#if $allLoaded || waveBuffer}
+  {#if $allLoaded || envelope}
     <section class="stack">
-      <Waveform buffer={waveBuffer} onSeek={(s) => currentEngine()?.seek(s)} />
+      <Waveform {envelope} onSeek={(s) => currentEngine()?.seek(s)} />
       <Transport />
       <div class="panel">
         <h2>Presets</h2>
@@ -213,6 +246,50 @@
     color: var(--text-dim);
     font-size: 0.82rem;
     max-width: 68ch;
+  }
+  .sourcechan {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+  }
+  .sourcechan .lbl {
+    color: var(--text);
+  }
+  .sourcechan .hint {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg button {
+    background: var(--panel-2);
+    color: var(--text-dim);
+    border: none;
+    padding: 0.3rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .seg button + button {
+    border-left: 1px solid var(--border);
+  }
+  .seg button.active {
+    background: var(--accent);
+    color: #05221a;
+    font-weight: 600;
+  }
+  .seg button:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
   .strips {
     display: grid;

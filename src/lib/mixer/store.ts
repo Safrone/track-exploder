@@ -6,6 +6,7 @@ import {
   type PartMix,
   type SourceTrack,
   type OutputMode,
+  type Channel,
 } from "../types";
 
 export interface MixerState {
@@ -19,6 +20,8 @@ export interface MixerState {
   /** Preserve pitch when changing tempo (requires the stretch worklet). */
   preservePitch: boolean;
   output: OutputMode;
+  /** Which channel the isolated part sits on — shared by all files in a set. */
+  sourceChannel: Channel;
 }
 
 function initialMix(): Record<Part, PartMix> {
@@ -33,6 +36,7 @@ function initialState(): MixerState {
     tempo: 1,
     preservePitch: true,
     output: "stereo",
+    sourceChannel: "left",
   };
 }
 

@@ -1,15 +1,15 @@
 <script lang="ts">
   import { position, duration } from "../audio/playback";
+  import type { StereoEnvelope } from "../audio/waveform";
 
   interface Props {
-    buffer: AudioBuffer | undefined;
+    envelope: StereoEnvelope | null;
     onSeek?: (seconds: number) => void;
   }
-  let { buffer, onSeek }: Props = $props();
+  let { envelope, onSeek }: Props = $props();
 
   let canvas: HTMLCanvasElement | undefined = $state();
 
-  // Downsample the buffer to per-pixel min/max peaks and draw.
   function draw() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -18,31 +18,46 @@
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const style = getComputedStyle(canvas);
-    const wave = style.getPropertyValue("--wave").trim() || "#6ee7b7";
-    const played = style.getPropertyValue("--wave-played").trim() || "#34d399";
+    const laneH = h / 2;
+    const centers = [laneH * 0.5, laneH * 1.5];
+    const playedX = $duration > 0 ? ($position / $duration) * w : 0;
 
-    if (buffer) {
-      const data = buffer.getChannelData(0);
-      const step = Math.max(1, Math.floor(data.length / w));
-      const playedX = $duration > 0 ? ($position / $duration) * w : 0;
-      for (let x = 0; x < w; x++) {
-        let min = 1;
-        let max = -1;
-        for (let i = 0; i < step; i++) {
-          const v = data[x * step + i] ?? 0;
-          if (v < min) min = v;
-          if (v > max) max = v;
+    if (envelope) {
+      const chans = [envelope.l, envelope.r];
+      for (let c = 0; c < 2; c++) {
+        const env = chans[c];
+        const n = env.length;
+        const cy = centers[c];
+        for (let x = 0; x < w; x++) {
+          const b = Math.floor((x / w) * n);
+          const amp = Math.min(env[b] ?? 0, 1) * (laneH * 0.46);
+          ctx.strokeStyle = x <= playedX ? "#34d399" : "#5eead4";
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, cy - amp);
+          ctx.lineTo(x + 0.5, cy + amp);
+          ctx.stroke();
         }
-        ctx.strokeStyle = x <= playedX ? played : wave;
+        // Channel centre line.
+        ctx.strokeStyle = "#2a2f3a";
         ctx.beginPath();
-        ctx.moveTo(x + 0.5, ((1 - max) * h) / 2);
-        ctx.lineTo(x + 0.5, ((1 - min) * h) / 2);
+        ctx.moveTo(0, cy);
+        ctx.lineTo(w, cy);
         ctx.stroke();
       }
+      // Divider between L and R lanes.
+      ctx.strokeStyle = "#20242e";
+      ctx.beginPath();
+      ctx.moveTo(0, laneH);
+      ctx.lineTo(w, laneH);
+      ctx.stroke();
+
+      // Lane labels.
+      ctx.fillStyle = "#9aa3b2";
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("L", 5, 13);
+      ctx.fillText("R", 5, laneH + 13);
     }
 
-    // Playhead line
     if ($duration > 0) {
       const x = ($position / $duration) * w;
       ctx.strokeStyle = "#f9fafb";
@@ -54,8 +69,8 @@
   }
 
   $effect(() => {
-    // Redraw whenever the buffer or playhead changes.
-    void buffer;
+    // Redraw when the mix envelope or the playhead changes.
+    void envelope;
     void $position;
     void $duration;
     draw();
@@ -72,7 +87,7 @@
 <canvas
   bind:this={canvas}
   width="1000"
-  height="120"
+  height="160"
   class="waveform"
   onclick={handleClick}
   role="slider"
@@ -86,12 +101,10 @@
 <style>
   .waveform {
     width: 100%;
-    height: 120px;
+    height: 160px;
     display: block;
     background: var(--panel-2);
     border-radius: 8px;
     cursor: pointer;
-    --wave: #5eead4;
-    --wave-played: #34d399;
   }
 </style>

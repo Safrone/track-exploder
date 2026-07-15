@@ -25,6 +25,7 @@ function state(over: {
     tempo: over.tempo ?? 1,
     preservePitch: true,
     output: over.output ?? "stereo",
+    sourceChannel: "left",
   };
 }
 
