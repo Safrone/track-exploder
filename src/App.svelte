@@ -112,7 +112,7 @@
 <main>
   <header>
     <div class="brand">
-      <span class="logo">◧</span>
+      <img class="logo" src="/logo.svg" alt="Track Exploder logo" />
       <div>
         <h1>Track Exploder</h1>
         <p>Isolate & remix barbershop part tracks</p>
@@ -223,8 +223,11 @@
     gap: 0.75rem;
   }
   .logo {
-    font-size: 2rem;
-    color: var(--accent);
+    width: 42px;
+    height: 42px;
+    border-radius: 9px;
+    display: block;
+    flex: 0 0 auto;
   }
   h1 {
     font-size: 1.35rem;

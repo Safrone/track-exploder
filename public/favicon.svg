@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Track Exploder">
-  <rect width="64" height="64" rx="14" fill="#1f2430"/>
-  <g fill="none" stroke="#6ee7b7" stroke-width="4" stroke-linecap="round">
-    <path d="M10 32 h6 l4 -14 4 28 4 -20 4 12 4 -8 h14"/>
-  </g>
-</svg>

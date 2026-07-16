@@ -1,3 +1,5 @@
+<p align="center"><img src="app-icon.svg" alt="Track Exploder" width="96" height="96" /></p>
+
 # Track Exploder
 
 **Turn barbershop "part-predominant" learning tracks into a full mixing desk.**
