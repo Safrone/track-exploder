@@ -146,47 +146,28 @@ fn encode_flac(
 
 #[cfg(feature = "mp3")]
 fn encode_mp3(samples: &[f32], channels: u16, sample_rate: u32) -> Result<Vec<u8>, EncodeError> {
-    use mp3lame_encoder::{Builder, FlushNoGap, Id3Tag, InterleavedPcm};
+    use shine_rs::{encode_pcm_to_mp3, Mp3EncoderConfig, StereoMode};
 
-    let mut builder = Builder::new().ok_or_else(|| EncodeError::Mp3("builder init".into()))?;
-    builder
-        .set_num_channels(channels as u8)
-        .map_err(|e| EncodeError::Mp3(format!("channels: {e:?}")))?;
-    builder
-        .set_sample_rate(sample_rate)
-        .map_err(|e| EncodeError::Mp3(format!("sample_rate: {e:?}")))?;
-    builder
-        .set_brate(mp3lame_encoder::Bitrate::Kbps256)
-        .map_err(|e| EncodeError::Mp3(format!("bitrate: {e:?}")))?;
-    let _ = builder.set_id3_tag(Id3Tag {
-        title: b"",
-        artist: b"",
-        album: b"",
-        year: b"",
-        comment: b"Track Exploder",
-        album_art: b"",
-    });
-    let mut encoder = builder
-        .build()
-        .map_err(|e| EncodeError::Mp3(format!("build: {e:?}")))?;
-
-    // LAME expects i16 PCM.
+    // Shine expects interleaved i16 PCM.
     let pcm: Vec<i16> = samples
         .iter()
         .map(|&s| (s.clamp(-1.0, 1.0) * 32767.0).round() as i16)
         .collect();
 
-    let mut out = Vec::with_capacity(mp3lame_encoder::max_required_buffer_size(pcm.len()));
-    let encoded = encoder
-        .encode(InterleavedPcm(&pcm), out.spare_capacity_mut())
-        .map_err(|e| EncodeError::Mp3(format!("encode: {e:?}")))?;
-    unsafe { out.set_len(encoded) };
+    let config = Mp3EncoderConfig {
+        sample_rate,
+        bitrate: 256,
+        channels: channels as u8,
+        stereo_mode: if channels >= 2 {
+            StereoMode::JointStereo
+        } else {
+            StereoMode::Mono
+        },
+        copyright: false,
+        original: true,
+    };
 
-    let flushed = encoder
-        .flush::<FlushNoGap>(out.spare_capacity_mut())
-        .map_err(|e| EncodeError::Mp3(format!("flush: {e:?}")))?;
-    unsafe { out.set_len(out.len() + flushed) };
-    Ok(out)
+    encode_pcm_to_mp3(config, &pcm).map_err(|e| EncodeError::Mp3(format!("{e:?}")))
 }
 
 #[cfg(test)]

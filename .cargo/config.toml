@@ -1,9 +1,0 @@
-# Neutralize any system autoconf "site defaults" (e.g. openSUSE/Fedora set
-# libdir=$prefix/lib64 via /usr/share/site/*/config.site). The optional `mp3`
-# feature builds bundled LAME with autotools, and mp3lame-sys only tells rustc
-# to search `<out>/lib` — so a lib64 default makes linking fail with
-# "could not find native static library `mp3lame`". Forcing CONFIG_SITE=/dev/null
-# keeps configure on the standard `lib` layout. Harmless for non-mp3 builds and
-# on platforms that don't use autotools.
-[env]
-CONFIG_SITE = { value = "/dev/null", force = true }

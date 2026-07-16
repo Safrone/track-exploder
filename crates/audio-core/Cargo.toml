@@ -22,9 +22,11 @@ flacenc = "0.4"
 metaflac = "0.2"
 signalsmith-stretch = "0.1"
 thiserror = "2"
-mp3lame-encoder = { version = "0.2", optional = true }
+shine-rs = { version = "0.1", optional = true }
 id3 = { version = "1", optional = true }
 
 [features]
-# MP3 export links LAME (LGPL); off by default to keep the core permissive.
-mp3 = ["dep:mp3lame-encoder", "dep:id3"]
+# MP3 export uses the pure-Rust Shine encoder (LGPL); off by default to keep the
+# core permissive. Pure Rust means it cross-compiles anywhere (incl. Android)
+# with no C toolchain.
+mp3 = ["dep:shine-rs", "dep:id3"]
