@@ -7,12 +7,10 @@
   }
   let { open, onClose }: Props = $props();
 
-  // --- Fill these in (placeholders until confirmed) ---------------------------
   const VERSION = "0.1.0";
-  const REPO_URL = "https://github.com/enertiv/track_exploder";
-  const AUTHOR = "the Track Exploder contributors";
-  const CONTACT = ""; // e.g. "support@example.com" — empty hides the row
-  // ---------------------------------------------------------------------------
+  const REPO_URL: string = ""; // no public repository yet — hides the link
+  const AUTHOR = "Eric Blum";
+  const CONTACT: string = "eblumster@gmail.com"; // empty hides the row
 
   const YEAR = 2026;
 
@@ -73,12 +71,16 @@
         </p>
       </div>
 
-      <div class="links">
-        <button class="link-btn" onclick={() => link(REPO_URL)}>GitHub repository</button>
-        {#if CONTACT}
-          <button class="link-btn" onclick={() => link(`mailto:${CONTACT}`)}>Contact</button>
-        {/if}
-      </div>
+      {#if REPO_URL || CONTACT}
+        <div class="links">
+          {#if REPO_URL}
+            <button class="link-btn" onclick={() => link(REPO_URL)}>GitHub repository</button>
+          {/if}
+          {#if CONTACT}
+            <button class="link-btn" onclick={() => link(`mailto:${CONTACT}`)}>Contact</button>
+          {/if}
+        </div>
+      {/if}
 
       <footer>© {YEAR} {AUTHOR}. MIT-licensed open source.</footer>
     </div>
