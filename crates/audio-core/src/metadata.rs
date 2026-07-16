@@ -59,12 +59,24 @@ fn collect(tags: &[Tag], out: &mut Tags) {
 pub fn read_tags(path: &Path) -> Result<Tags, DecodeError> {
     let file = std::fs::File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
     let mut hint = Hint::new();
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(ext);
     }
+    read_tags_mss(mss, hint)
+}
 
+/// Read a normalized set of tags from in-memory audio bytes.
+pub fn read_tags_bytes(bytes: Vec<u8>, ext_hint: Option<&str>) -> Result<Tags, DecodeError> {
+    let mss = MediaSourceStream::new(Box::new(std::io::Cursor::new(bytes)), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = ext_hint {
+        hint.with_extension(ext);
+    }
+    read_tags_mss(mss, hint)
+}
+
+fn read_tags_mss(mss: MediaSourceStream, hint: Hint) -> Result<Tags, DecodeError> {
     let mut probed = symphonia::default::get_probe().format(
         &hint,
         mss,

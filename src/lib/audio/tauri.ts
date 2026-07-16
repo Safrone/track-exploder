@@ -1,6 +1,7 @@
 /**
- * Thin wrappers around Tauri IPC with graceful fallbacks so the UI can still
- * load in a plain browser (`npm run dev` without a webview) for layout work.
+ * Thin wrappers around Tauri IPC. All audio commands are byte-in / byte-out —
+ * the web layer reads/writes files (see `files.ts`) so the same code path works
+ * on desktop (paths) and mobile (content:// URIs).
  */
 import { invoke } from "@tauri-apps/api/core";
 
@@ -10,40 +11,52 @@ export function isTauri(): boolean {
 }
 
 /**
- * Decode one isolated channel of a file. Returns the raw response bytes:
+ * Decode one isolated channel from audio file bytes. Returns raw response:
  * `[sampleRate:u32 LE][frames:u32 LE][samples:f32 LE ...]`.
  */
 export async function invokeDecodeStem(
-  path: string,
+  bytes: Uint8Array,
   channel: "left" | "right",
+  ext?: string,
 ): Promise<ArrayBuffer> {
-  // A command returning `tauri::ipc::Response` resolves to an ArrayBuffer.
-  return (await invoke("decode_stem", { path, channel })) as ArrayBuffer;
+  return (await invoke("decode_stem", bytes, {
+    headers: { "x-decode-meta": JSON.stringify({ channel, ext }) },
+  })) as ArrayBuffer;
 }
 
-/**
- * Send a rendered interleaved-f32 mix to the native side to encode and write.
- */
-export async function invokeExportMix(
+/** Stretch (if needed) + encode a rendered mix; returns the encoded file bytes. */
+export async function invokeEncodeMix(
   pcm: Float32Array,
   meta: {
-    path: string;
     format: string;
     channels: number;
     sampleRate: number;
     bitDepth: number;
-    tags?: Record<string, string>;
     tempo?: number;
   },
-): Promise<void> {
-  await invoke("export_mix", pcm.buffer as ArrayBuffer, {
-    headers: { "x-export-meta": JSON.stringify(meta) },
-  });
+): Promise<ArrayBuffer> {
+  return (await invoke("encode_mix", pcm.buffer as ArrayBuffer, {
+    headers: { "x-encode-meta": JSON.stringify(meta) },
+  })) as ArrayBuffer;
 }
 
-/** Read a normalized set of tags (album, artist, title, …) from a source file. */
-export async function invokeReadTags(path: string): Promise<Record<string, string>> {
-  return (await invoke("read_tags", { path })) as Record<string, string>;
+/** Embed tags into an already-written file (desktop paths only). */
+export async function invokeEmbedTags(
+  path: string,
+  format: string,
+  tags: Record<string, string>,
+): Promise<void> {
+  await invoke("embed_tags", { path, format, tags });
+}
+
+/** Read a normalized set of tags (album, artist, title, …) from file bytes. */
+export async function invokeReadTags(
+  bytes: Uint8Array,
+  ext?: string,
+): Promise<Record<string, string>> {
+  return (await invoke("read_tags", bytes, {
+    headers: ext ? { "x-ext": ext } : {},
+  })) as Record<string, string>;
 }
 
 /**

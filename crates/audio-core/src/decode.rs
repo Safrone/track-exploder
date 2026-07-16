@@ -39,12 +39,28 @@ pub enum DecodeError {
 pub fn decode_file(path: &Path) -> Result<DecodedAudio, DecodeError> {
     let file = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
     let mut hint = Hint::new();
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(ext);
     }
+    decode_mss(mss, hint)
+}
 
+/// Decode in-memory audio bytes into planar `f32` PCM.
+///
+/// `ext_hint` (e.g. "mp3") aids format detection but is optional — Symphonia
+/// also sniffs the content. This is the entry point used on mobile, where files
+/// arrive as bytes read through the platform rather than as filesystem paths.
+pub fn decode_bytes(bytes: Vec<u8>, ext_hint: Option<&str>) -> Result<DecodedAudio, DecodeError> {
+    let mss = MediaSourceStream::new(Box::new(std::io::Cursor::new(bytes)), Default::default());
+    let mut hint = Hint::new();
+    if let Some(ext) = ext_hint {
+        hint.with_extension(ext);
+    }
+    decode_mss(mss, hint)
+}
+
+fn decode_mss(mss: MediaSourceStream, hint: Hint) -> Result<DecodedAudio, DecodeError> {
     let probed = symphonia::default::get_probe().format(
         &hint,
         mss,

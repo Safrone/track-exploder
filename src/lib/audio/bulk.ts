@@ -1,8 +1,9 @@
 import { PARTS, type ExportFormat, type Part } from "../types";
 import { guessPart, basename } from "./load";
-import { decodeStem } from "./decode";
+import { decodeStem, readAudioTags } from "./decode";
 import { renderMix, type RenderSource } from "./export";
-import { invokeExportMix, invokeReadTags } from "./tauri";
+import { invokeEncodeMix, invokeEmbedTags } from "./tauri";
+import { writeBytes, isRealPath } from "./files";
 import { commonSongBase, suggestBaseNameFor } from "../mixer/naming";
 import { computeCommon } from "../mixer/tags";
 import { addExport, setLastExportDir } from "../mixer/exports";
@@ -120,7 +121,7 @@ export async function bulkExport(
         const path = group.parts[part]!;
         stems.set(part, await decodeStem(opts.ctx, path, opts.state.sourceChannel));
         try {
-          tagMap[part] = await invokeReadTags(path);
+          tagMap[part] = await readAudioTags(path);
         } catch {
           /* tags best-effort */
         }
@@ -137,15 +138,22 @@ export async function bulkExport(
       const fileBase = suggestBaseNameFor(group.name, opts.state);
       const fileName = `${fileBase}.${EXT[opts.format]}`;
       const outPath = `${opts.outputDir}${sep}${fileName}`;
-      await invokeExportMix(rendered.pcm, {
-        path: outPath,
+      const encoded = await invokeEncodeMix(rendered.pcm, {
         format: opts.format,
         channels: rendered.channels,
         sampleRate: rendered.sampleRate,
         bitDepth: opts.bitDepth,
-        tags: computeCommon(tagMap),
         tempo,
       });
+      await writeBytes(outPath, new Uint8Array(encoded));
+      const tags = computeCommon(tagMap);
+      if (isRealPath(outPath) && Object.keys(tags).length > 0) {
+        try {
+          await invokeEmbedTags(outPath, opts.format, tags);
+        } catch {
+          /* tags best-effort */
+        }
+      }
 
       addExport({ path: outPath, name: fileName, format: opts.format, at: Date.now() });
       exported++;

@@ -4,7 +4,8 @@
   import { getEngine, currentEngine } from "./lib/audio/playback";
   import { pickAndLoad, reExtractAll, basename } from "./lib/audio/load";
   import { mixEnvelope, type StereoEnvelope } from "./lib/audio/waveform";
-  import { isTauri, invokeReadTags } from "./lib/audio/tauri";
+  import { isTauri } from "./lib/audio/tauri";
+  import { readAudioTags } from "./lib/audio/decode";
   import { clearTags, setPartTags } from "./lib/mixer/tags";
   import PartStrip from "./lib/components/PartStrip.svelte";
   import Transport from "./lib/components/Transport.svelte";
@@ -64,7 +65,7 @@
           const path = tracks[part]?.path;
           if (!path) return;
           try {
-            setPartTags(part, await invokeReadTags(path));
+            setPartTags(part, await readAudioTags(path));
           } catch {
             /* tags are best-effort */
           }

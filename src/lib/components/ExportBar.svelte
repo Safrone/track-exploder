@@ -7,7 +7,8 @@
   import { addExport, getLastExportDir, setLastExportDir, splitDir } from "../mixer/exports";
   import { getEngine } from "../audio/playback";
   import { renderMix } from "../audio/export";
-  import { invokeExportMix } from "../audio/tauri";
+  import { invokeEncodeMix, invokeEmbedTags } from "../audio/tauri";
+  import { writeBytes, isRealPath } from "../audio/files";
   import ProgressBar from "./ProgressBar.svelte";
   import RecentExports from "./RecentExports.svelte";
   import BulkExport from "./BulkExport.svelte";
@@ -69,15 +70,25 @@
 
       progress = 0.6;
       message = "Encoding…";
-      await invokeExportMix(rendered.pcm, {
-        path,
+      const encoded = await invokeEncodeMix(rendered.pcm, {
         format,
         channels: rendered.channels,
         sampleRate: rendered.sampleRate,
         bitDepth,
-        tags: commonTags,
         tempo: state.tempoEnabled ? state.tempo : 1,
       });
+
+      progress = 0.85;
+      message = "Writing…";
+      await writeBytes(path, new Uint8Array(encoded));
+      // Embed tags only where we have a real filesystem path (desktop).
+      if (isRealPath(path) && tagKeys.length > 0) {
+        try {
+          await invokeEmbedTags(path, format, commonTags);
+        } catch {
+          /* tags best-effort */
+        }
+      }
 
       progress = 1;
       const { dir } = splitDir(path);

@@ -1,18 +1,22 @@
 import type { Channel } from "../types";
-import { invokeDecodeStem } from "./tauri";
+import { invokeDecodeStem, invokeReadTags } from "./tauri";
+import { readBytes, extOf } from "./files";
 
 /**
  * Decode one isolated part from a source file into a mono {@link AudioBuffer}.
  *
- * The native `decode_stem` command returns a compact binary blob rather than a
- * JSON array so that multi-million-sample stems transfer efficiently.
+ * The file bytes are read on the web side (works with desktop paths and mobile
+ * content:// URIs) and handed to the native `decode_stem` command, which returns
+ * a compact binary blob rather than JSON so multi-million-sample stems transfer
+ * efficiently.
  */
 export async function decodeStem(
   ctx: BaseAudioContext,
   path: string,
   channel: Channel,
 ): Promise<AudioBuffer> {
-  const raw = await invokeDecodeStem(path, channel);
+  const bytes = await readBytes(path);
+  const raw = await invokeDecodeStem(bytes, channel, extOf(path));
   const view = new DataView(raw);
   const sampleRate = view.getUint32(0, true);
   const frames = view.getUint32(4, true);
@@ -22,4 +26,10 @@ export async function decodeStem(
   const buffer = ctx.createBuffer(1, frames, sampleRate);
   buffer.copyToChannel(samples, 0);
   return buffer;
+}
+
+/** Read a source file's tags (reads bytes on the web side, parses in Rust). */
+export async function readAudioTags(path: string): Promise<Record<string, string>> {
+  const bytes = await readBytes(path);
+  return invokeReadTags(bytes, extOf(path));
 }
