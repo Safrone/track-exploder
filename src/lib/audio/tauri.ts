@@ -4,6 +4,7 @@
  * on desktop (paths) and mobile (content:// URIs).
  */
 import { invoke } from "@tauri-apps/api/core";
+import { writeTempPcm, removeTemp } from "./files";
 
 /** True when running inside a Tauri webview (desktop or mobile). */
 export function isTauri(): boolean {
@@ -11,17 +12,16 @@ export function isTauri(): boolean {
 }
 
 /**
- * Decode one isolated channel from audio file bytes. Returns raw response:
+ * Decode one isolated channel from the file at `path` (Rust reads it via the fs
+ * plugin — works with desktop paths and Android content:// URIs). Returns:
  * `[sampleRate:u32 LE][frames:u32 LE][samples:f32 LE ...]`.
  */
 export async function invokeDecodeStem(
-  bytes: Uint8Array,
+  path: string,
   channel: "left" | "right",
   ext?: string,
 ): Promise<ArrayBuffer> {
-  return (await invoke("decode_stem", bytes, {
-    headers: { "x-decode-meta": JSON.stringify({ channel, ext }) },
-  })) as ArrayBuffer;
+  return (await invoke("decode_stem", { path, channel, ext })) as ArrayBuffer;
 }
 
 /** Stretch (if needed) + encode a rendered mix; returns the encoded file bytes. */
@@ -35,9 +35,12 @@ export async function invokeEncodeMix(
     tempo?: number;
   },
 ): Promise<ArrayBuffer> {
-  return (await invoke("encode_mix", pcm.buffer as ArrayBuffer, {
-    headers: { "x-encode-meta": JSON.stringify(meta) },
-  })) as ArrayBuffer;
+  const path = await writeTempPcm(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+  try {
+    return (await invoke("encode_mix", { path, ...meta })) as ArrayBuffer;
+  } finally {
+    await removeTemp(path);
+  }
 }
 
 /** Embed tags into an already-written file (desktop paths only). */
@@ -49,14 +52,20 @@ export async function invokeEmbedTags(
   await invoke("embed_tags", { path, format, tags });
 }
 
-/** Read a normalized set of tags (album, artist, title, …) from file bytes. */
+/**
+ * Resolve a content:// URI's real display name (Android ContentResolver).
+ * Returns null off-Android or when the name can't be resolved.
+ */
+export async function invokeContentName(uri: string): Promise<string | null> {
+  return (await invoke("content_name", { uri })) as string | null;
+}
+
+/** Read a normalized set of tags (album, artist, title, …) from a file path/URI. */
 export async function invokeReadTags(
-  bytes: Uint8Array,
+  path: string,
   ext?: string,
 ): Promise<Record<string, string>> {
-  return (await invoke("read_tags", bytes, {
-    headers: ext ? { "x-ext": ext } : {},
-  })) as Record<string, string>;
+  return (await invoke("read_tags", { path, ext })) as Record<string, string>;
 }
 
 /**
@@ -68,7 +77,12 @@ export async function invokeStretchStem(
   sampleRate: number,
   tempo: number,
 ): Promise<ArrayBuffer> {
-  return (await invoke("stretch_stem", samples.buffer as ArrayBuffer, {
-    headers: { "x-stretch-meta": JSON.stringify({ sampleRate, tempo }) },
-  })) as ArrayBuffer;
+  const path = await writeTempPcm(
+    new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength),
+  );
+  try {
+    return (await invoke("stretch_stem", { path, sampleRate, tempo })) as ArrayBuffer;
+  } finally {
+    await removeTemp(path);
+  }
 }

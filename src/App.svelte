@@ -2,7 +2,14 @@
   import { PARTS, type Channel, type Part } from "./lib/types";
   import { mixer, allLoaded, snapshot, patchState } from "./lib/mixer/store";
   import { getEngine, currentEngine } from "./lib/audio/playback";
-  import { pickAndLoad, reExtractAll, basename } from "./lib/audio/load";
+  import {
+    pickAndLoad,
+    pickOneAudioFile,
+    loadPart,
+    reExtractAll,
+    displayName,
+    basename,
+  } from "./lib/audio/load";
   import { mixEnvelope, type StereoEnvelope } from "./lib/audio/waveform";
   import { isTauri } from "./lib/audio/tauri";
   import { readAudioTags } from "./lib/audio/decode";
@@ -39,6 +46,35 @@
       ? mixEnvelope(engine, state, WAVE_BUCKETS)
       : null;
   });
+
+  // Explicit per-part load — pick one file and assign it to `part`. Works on
+  // mobile where the file picker returns opaque content:// URIs (no filename to
+  // auto-detect the part from).
+  async function onLoadPart(part: Part) {
+    if (!tauri) {
+      status = "File loading needs the app (not a plain browser).";
+      return;
+    }
+    const path = await pickOneAudioFile();
+    if (!path) return;
+    loading = true;
+    status = `Loading ${part}…`;
+    try {
+      const name = await displayName(path);
+      await loadPart(getEngine(), part, path, snapshot().sourceChannel, name);
+      currentEngine()?.applyMix(snapshot());
+      try {
+        setPartTags(part, await readAudioTags(path));
+      } catch {
+        /* tags best-effort */
+      }
+      status = `Loaded ${part}`;
+    } catch (err) {
+      status = `Load failed: ${err}`;
+    } finally {
+      loading = false;
+    }
+  }
 
   async function onLoad() {
     if (!tauri) {
@@ -176,7 +212,7 @@
 
   <section class="strips">
     {#each PARTS as part (part)}
-      <PartStrip {part} />
+      <PartStrip {part} {onLoadPart} />
     {/each}
   </section>
 

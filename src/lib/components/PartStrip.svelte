@@ -5,8 +5,9 @@
 
   interface Props {
     part: Part;
+    onLoadPart: (part: Part) => void;
   }
-  let { part }: Props = $props();
+  let { part, onLoadPart }: Props = $props();
 
   const track = $derived($mixer.tracks[part]);
   const m = $derived($mixer.mix[part]);
@@ -25,6 +26,9 @@
   </div>
 
   <div class="row">
+    <button class="loadbtn" onclick={() => onLoadPart(part)}>
+      {track ? "Replace" : "Load file"}
+    </button>
     <button
       class="mute"
       class:active={!m.included}
@@ -117,6 +121,19 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+  }
+  .loadbtn {
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.78rem;
+  }
+  .loadbtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .mute {
     margin-left: auto;

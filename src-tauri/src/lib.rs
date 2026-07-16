@@ -14,8 +14,7 @@
 use audio_core::{
     decode_bytes, encode_interleaved, extract_channel, BitDepth, Channel, ExportFormat,
 };
-use serde::Deserialize;
-use tauri::ipc::{InvokeBody, Request, Response};
+use tauri::ipc::Response;
 
 // --- helpers ----------------------------------------------------------------
 
@@ -43,15 +42,12 @@ fn parse_format(s: &str) -> Result<ExportFormat, String> {
     }
 }
 
-fn raw_body<'a>(request: &'a Request<'_>) -> Result<&'a [u8], String> {
-    match request.body() {
-        InvokeBody::Raw(b) => Ok(b),
-        _ => Err("expected a raw ArrayBuffer body".into()),
-    }
-}
-
-fn header<'a>(request: &'a Request<'_>, name: &str) -> Option<&'a str> {
-    request.headers().get(name).and_then(|v| v.to_str().ok())
+/// Read a file's bytes via the fs plugin — resolves real paths on desktop and
+/// content:// URIs on Android (avoids transferring the file over IPC).
+fn read_file_bytes(app: &tauri::AppHandle, path: &str) -> Result<Vec<u8>, String> {
+    use tauri_plugin_fs::{FilePath, FsExt};
+    let fp: FilePath = path.parse().map_err(|e| format!("bad path: {e}"))?;
+    app.fs().read(fp).map_err(|e| format!("read failed: {e}"))
 }
 
 fn bytes_to_f32(bytes: &[u8]) -> Result<Vec<f32>, String> {
@@ -77,23 +73,17 @@ fn pcm_response(sample_rate: u32, samples: Vec<f32>) -> Response {
 
 // --- commands ---------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
-struct DecodeMeta {
-    channel: String,
-    #[serde(default)]
-    ext: Option<String>,
-}
-
-/// Decode audio file bytes (raw body) and return one isolated channel as
-/// `[sample_rate u32 LE][frames u32 LE][samples f32 LE …]`.
+/// Read the file at `path` (or content:// URI), decode it, and return one
+/// isolated channel as `[sample_rate u32 LE][frames u32 LE][samples f32 LE …]`.
 #[tauri::command]
-async fn decode_stem(request: Request<'_>) -> Result<Response, String> {
-    let meta: DecodeMeta =
-        serde_json::from_str(header(&request, "x-decode-meta").ok_or("missing x-decode-meta")?)
-            .map_err(|e| format!("bad decode meta: {e}"))?;
-    let channel = parse_channel(&meta.channel)?;
-    let bytes = raw_body(&request)?.to_vec();
-    let ext = meta.ext;
+async fn decode_stem(
+    app: tauri::AppHandle,
+    path: String,
+    channel: String,
+    ext: Option<String>,
+) -> Result<Response, String> {
+    let channel = parse_channel(&channel)?;
+    let bytes = read_file_bytes(&app, &path)?;
 
     let decoded = tauri::async_runtime::spawn_blocking(move || decode_bytes(bytes, ext.as_deref()))
         .await
@@ -105,33 +95,29 @@ async fn decode_stem(request: Request<'_>) -> Result<Response, String> {
     Ok(pcm_response(sr, samples))
 }
 
-#[derive(Debug, Deserialize)]
-struct EncodeMeta {
-    format: String,
-    channels: u16,
-    #[serde(rename = "sampleRate")]
-    sample_rate: u32,
-    #[serde(rename = "bitDepth")]
-    bit_depth: u32,
-    #[serde(default = "default_tempo")]
-    tempo: f32,
-}
-
-/// Stretch (if `tempo != 1`) and encode a rendered interleaved-f32 mix (raw body).
+/// Stretch (if `tempo != 1`) and encode a rendered interleaved-f32 mix. The web
+/// layer writes the raw PCM to a temp file (`path`) and passes it here; we read
+/// it via the fs plugin (avoids a large raw IPC body, which Android rejects).
 /// Returns the encoded file bytes for the web layer to write.
 #[tauri::command]
-async fn encode_mix(request: Request<'_>) -> Result<Response, String> {
-    let meta: EncodeMeta =
-        serde_json::from_str(header(&request, "x-encode-meta").ok_or("missing x-encode-meta")?)
-            .map_err(|e| format!("bad encode meta: {e}"))?;
-    let samples = bytes_to_f32(raw_body(&request)?)?;
+#[allow(clippy::too_many_arguments)]
+async fn encode_mix(
+    app: tauri::AppHandle,
+    path: String,
+    format: String,
+    channels: u16,
+    #[allow(non_snake_case)] sampleRate: u32,
+    #[allow(non_snake_case)] bitDepth: u32,
+    tempo: Option<f32>,
+) -> Result<Response, String> {
+    let samples = bytes_to_f32(&read_file_bytes(&app, &path)?)?;
 
-    let format = parse_format(&meta.format)?;
-    let bit_depth = match meta.bit_depth {
+    let format = parse_format(&format)?;
+    let bit_depth = match bitDepth {
         16 => BitDepth::Sixteen,
         _ => BitDepth::TwentyFour,
     };
-    let (channels, sample_rate, tempo) = (meta.channels, meta.sample_rate, meta.tempo);
+    let (sample_rate, tempo) = (sampleRate, tempo.unwrap_or_else(default_tempo));
 
     let encoded = tauri::async_runtime::spawn_blocking(move || {
         let samples = if (tempo - 1.0).abs() > 1e-4 {
@@ -148,22 +134,18 @@ async fn encode_mix(request: Request<'_>) -> Result<Response, String> {
     Ok(Response::new(encoded))
 }
 
-#[derive(Debug, Deserialize)]
-struct StretchMeta {
-    #[serde(rename = "sampleRate")]
-    sample_rate: u32,
-    tempo: f32,
-}
-
-/// Pitch-preserving time-stretch of one mono stem (raw f32 body). Returns
+/// Pitch-preserving time-stretch of one mono stem. The web layer writes the raw
+/// f32 samples to a temp file (`path`) and passes it here. Returns
 /// `[sample_rate u32 LE][frames u32 LE][samples f32 LE …]`.
 #[tauri::command]
-async fn stretch_stem(request: Request<'_>) -> Result<Response, String> {
-    let meta: StretchMeta =
-        serde_json::from_str(header(&request, "x-stretch-meta").ok_or("missing x-stretch-meta")?)
-            .map_err(|e| format!("bad stretch meta: {e}"))?;
-    let input = bytes_to_f32(raw_body(&request)?)?;
-    let (sr, tempo) = (meta.sample_rate, meta.tempo);
+async fn stretch_stem(
+    app: tauri::AppHandle,
+    path: String,
+    #[allow(non_snake_case)] sampleRate: u32,
+    tempo: f32,
+) -> Result<Response, String> {
+    let input = bytes_to_f32(&read_file_bytes(&app, &path)?)?;
+    let sr = sampleRate;
 
     let out = tauri::async_runtime::spawn_blocking(move || {
         audio_core::time_stretch(&input, 1, sr, tempo)
@@ -173,15 +155,115 @@ async fn stretch_stem(request: Request<'_>) -> Result<Response, String> {
     Ok(pcm_response(sr, out))
 }
 
-/// Read a normalized set of tags from audio file bytes (raw body).
+/// Read a normalized set of tags from the file at `path` (or content:// URI).
 #[tauri::command]
-async fn read_tags(request: Request<'_>) -> Result<audio_core::Tags, String> {
-    let ext = header(&request, "x-ext").map(String::from);
-    let bytes = raw_body(&request)?.to_vec();
+async fn read_tags(
+    app: tauri::AppHandle,
+    path: String,
+    ext: Option<String>,
+) -> Result<audio_core::Tags, String> {
+    let bytes = read_file_bytes(&app, &path)?;
     tauri::async_runtime::spawn_blocking(move || audio_core::read_tags_bytes(bytes, ext.as_deref()))
         .await
         .map_err(|e| format!("read_tags task failed: {e}"))?
         .map_err(|e| e.to_string())
+}
+
+/// Resolve a file's real display name (e.g. `01 Song - TENOR.mp3`) from an
+/// opaque Android `content://` URI, by querying the `ContentResolver` for
+/// `OpenableColumns.DISPLAY_NAME`. Returns `None` when unavailable (and always
+/// `None` off Android, where paths already carry a filename).
+#[tauri::command]
+async fn content_name(_uri: String) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+        wry::prelude::dispatch(move |env, activity, _webview| {
+            let _ = tx.send(android_display_name(env, activity, &_uri));
+        });
+        tauri::async_runtime::spawn_blocking(move || rx.recv().unwrap_or(None))
+            .await
+            .map_err(|e| format!("content_name task failed: {e}"))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(None)
+    }
+}
+
+/// Query the Android `ContentResolver` for a content URI's `DISPLAY_NAME`.
+/// Runs on the UI thread (via `wry::prelude::dispatch`) with a live JNI env.
+#[cfg(target_os = "android")]
+fn android_display_name(
+    env: &mut jni::JNIEnv,
+    activity: &jni::objects::JObject,
+    uri: &str,
+) -> Option<String> {
+    use jni::objects::{JObject, JString};
+
+    let juri = env.new_string(uri).ok()?;
+    let uri_class = env.find_class("android/net/Uri").ok()?;
+    let uri_obj = env
+        .call_static_method(
+            uri_class,
+            "parse",
+            "(Ljava/lang/String;)Landroid/net/Uri;",
+            &[(&juri).into()],
+        )
+        .ok()?
+        .l()
+        .ok()?;
+
+    let resolver = env
+        .call_method(
+            activity,
+            "getContentResolver",
+            "()Landroid/content/ContentResolver;",
+            &[],
+        )
+        .ok()?
+        .l()
+        .ok()?;
+
+    let null = JObject::null();
+    let cursor = env
+        .call_method(
+            &resolver,
+            "query",
+            "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;",
+            &[(&uri_obj).into(), (&null).into(), (&null).into(), (&null).into(), (&null).into()],
+        )
+        .ok()?
+        .l()
+        .ok()?;
+    if cursor.is_null() {
+        return None;
+    }
+
+    let col = env.new_string("_display_name").ok()?;
+    let idx = env
+        .call_method(&cursor, "getColumnIndex", "(Ljava/lang/String;)I", &[(&col).into()])
+        .ok()?
+        .i()
+        .ok()?;
+
+    let mut name = None;
+    let has_row = env
+        .call_method(&cursor, "moveToFirst", "()Z", &[])
+        .ok()
+        .and_then(|v| v.z().ok())
+        .unwrap_or(false);
+    if idx >= 0 && has_row {
+        if let Ok(v) = env.call_method(&cursor, "getString", "(I)Ljava/lang/String;", &[idx.into()]) {
+            if let Ok(jstr) = v.l() {
+                if let Ok(s) = env.get_string(&JString::from(jstr)) {
+                    name = Some(s.into());
+                }
+            }
+        }
+    }
+    let _ = env.call_method(&cursor, "close", "()V", &[]);
+    name
 }
 
 /// Embed tags into an already-written file. Desktop only (real filesystem path);
@@ -208,6 +290,7 @@ pub fn run() {
             encode_mix,
             stretch_stem,
             read_tags,
+            content_name,
             embed_tags
         ])
         .run(tauri::generate_context!())
