@@ -5,6 +5,7 @@ import { renderMix, type RenderSource } from "./export";
 import { invokeExportMix, invokeReadTags } from "./tauri";
 import { commonSongBase, suggestBaseNameFor } from "../mixer/naming";
 import { computeCommon } from "../mixer/tags";
+import { addExport, setLastExportDir } from "../mixer/exports";
 import type { MixerState } from "../mixer/store";
 
 /** One detected song and the part files found for it. */
@@ -105,6 +106,7 @@ export async function bulkExport(
   const total = complete.length;
   const tempo = opts.state.tempoEnabled ? opts.state.tempo : 1;
   const sep = opts.outputDir.includes("\\") ? "\\" : "/";
+  setLastExportDir(opts.outputDir);
 
   let exported = 0;
   let failed = 0;
@@ -133,7 +135,8 @@ export async function bulkExport(
 
       onProgress?.({ index, total, group, stage: "encoding" });
       const fileBase = suggestBaseNameFor(group.name, opts.state);
-      const outPath = `${opts.outputDir}${sep}${fileBase}.${EXT[opts.format]}`;
+      const fileName = `${fileBase}.${EXT[opts.format]}`;
+      const outPath = `${opts.outputDir}${sep}${fileName}`;
       await invokeExportMix(rendered.pcm, {
         path: outPath,
         format: opts.format,
@@ -144,6 +147,7 @@ export async function bulkExport(
         tempo,
       });
 
+      addExport({ path: outPath, name: fileName, format: opts.format, at: Date.now() });
       exported++;
       onProgress?.({ index, total, group, stage: "done" });
     } catch (e) {
