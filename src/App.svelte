@@ -13,6 +13,7 @@
   import Waveform from "./lib/components/Waveform.svelte";
   import ProgressBar from "./lib/components/ProgressBar.svelte";
   import RecentExports from "./lib/components/RecentExports.svelte";
+  import About from "./lib/components/About.svelte";
   import { exportsList } from "./lib/mixer/exports";
 
   const WAVE_BUCKETS = 1000;
@@ -20,6 +21,7 @@
   let loading = $state(false);
   let status = $state("");
   let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
+  let showAbout = $state(false);
   let envelope = $state<StereoEnvelope | null>(null);
   const tauri = isTauri();
 
@@ -118,10 +120,15 @@
         <p>Isolate & remix barbershop part tracks</p>
       </div>
     </div>
-    <button class="load" onclick={onLoad} disabled={loading}>
-      {loading ? "Loading…" : "Load part tracks"}
-    </button>
+    <div class="actions">
+      <button class="about" onclick={() => (showAbout = true)}>About</button>
+      <button class="load" onclick={onLoad} disabled={loading}>
+        {loading ? "Loading…" : "Load part tracks"}
+      </button>
+    </div>
   </header>
+
+  <About open={showAbout} onClose={() => (showAbout = false)} />
 
   {#if !tauri}
     <div class="banner">
@@ -249,6 +256,24 @@
   }
   .load:disabled {
     opacity: 0.6;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .about {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .about:hover {
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .banner {
     background: #3b2f14;
