@@ -91,6 +91,10 @@ jobs:
       - name: Init & build Android debug APK (arm64)
         run: |
           npm run tauri android init
+          # Overwrite the scaffold's default launcher icon with our app icons.
+          dest=src-tauri/gen/android/app/src/main/res
+          cp -rf src-tauri/icons/android/mipmap-* "$dest/"
+          cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
           npm run tauri android build -- --debug --apk --target aarch64
       - uses: actions/upload-artifact@v4
         with:

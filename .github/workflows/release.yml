@@ -88,6 +88,11 @@ jobs:
       - name: Build Android APK (arm64, with MP3)
         run: |
           npm run tauri android init
+          # `android init` scaffolds Tauri's default launcher icon; overwrite the
+          # generated res with our committed app icons so the APK uses our logo.
+          dest=src-tauri/gen/android/app/src/main/res
+          cp -rf src-tauri/icons/android/mipmap-* "$dest/"
+          cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
           npm run tauri android build -- --debug --apk --target aarch64 --features mp3
       - name: Attach APK to the release
         env:
