@@ -6,7 +6,7 @@ members = ["crates/audio-core", "src-tauri"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/enertiv/track_exploder"
+repository = "https://github.com/Safrone/track-exploder"
 
 [profile.release]
 # Smaller, faster binaries for distribution.
