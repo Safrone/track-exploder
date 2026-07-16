@@ -391,6 +391,12 @@
       grid-template-columns: repeat(2, 1fr);
     }
   }
+  @media (max-width: 480px) {
+    /* One full-width strip per row so the sliders have room on a phone. */
+    .strips {
+      grid-template-columns: 1fr;
+    }
+  }
   .stack {
     display: flex;
     flex-direction: column;

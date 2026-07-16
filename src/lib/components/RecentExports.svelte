@@ -37,12 +37,12 @@
       {#each recent as rec (rec.path + rec.at)}
         <tr>
           <td class="fname" title={rec.path}>{rec.name}</td>
-          <td><button class="link" onclick={() => openFile(rec.path)}>Open</button></td>
-          <td>
-            {#if desktop}
-              <button class="link" onclick={() => openFolder(rec.path)}>Open folder</button>
-            {/if}
-          </td>
+          {#if desktop}
+            <td><button class="link" onclick={() => openFile(rec.path)}>Open</button></td>
+            <td><button class="link" onclick={() => openFolder(rec.path)}>Open folder</button></td>
+          {:else}
+            <td colspan="2"></td>
+          {/if}
         </tr>
       {/each}
     </tbody>

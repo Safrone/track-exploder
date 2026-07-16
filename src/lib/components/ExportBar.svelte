@@ -94,9 +94,16 @@
       }
 
       progress = 1;
+      // Only remember a real filesystem dir (an Android content:// URI has no
+      // usable directory). Record the name the user chose, not the URI token.
       const { dir } = splitDir(path);
-      if (dir) setLastExportDir(dir);
-      addExport({ path, name: basename(path), format, at: Date.now() });
+      if (dir && isRealPath(path)) setLastExportDir(dir);
+      addExport({
+        path,
+        name: isRealPath(path) ? basename(path) : fileName,
+        format,
+        at: Date.now(),
+      });
       message = "Exported ✓";
     } catch (err) {
       message = `Export failed: ${err}`;

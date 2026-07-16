@@ -194,4 +194,53 @@
     border: 2px solid var(--panel);
     cursor: pointer;
   }
+
+  /* Touch devices: bigger tracks, thumbs, and hit areas for fingers. */
+  @media (pointer: coarse) {
+    .slider {
+      font-size: 0.85rem;
+      gap: 0.35rem;
+    }
+    .slider input {
+      height: 30px; /* enlarges the touch target */
+    }
+    /* Gain (native range): style the thumb so it's finger-sized. */
+    .slider input:not(.pan) {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+    }
+    .slider input:not(.pan)::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--panel-2);
+    }
+    .slider input:not(.pan)::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      margin-top: -9px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--panel);
+    }
+    /* Pan: taller track + bigger thumb. */
+    .pan {
+      height: 10px;
+    }
+    .pan::-webkit-slider-runnable-track {
+      height: 10px;
+    }
+    .pan::-webkit-slider-thumb {
+      width: 26px;
+      height: 26px;
+      margin-top: -8px;
+    }
+    .loadbtn,
+    .mute {
+      padding: 0.45rem 0.8rem;
+      font-size: 0.85rem;
+    }
+  }
 </style>
