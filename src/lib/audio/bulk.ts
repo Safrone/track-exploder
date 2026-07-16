@@ -25,9 +25,20 @@ function stripExt(name: string): string {
   return dot > 0 ? name.slice(0, dot) : name;
 }
 
-/** A key shared by all parts of one song (the filename with the part token blanked). */
+/**
+ * A key shared by all parts of one song: the filename up to the part token.
+ * Everything after (author, date, etc.) is ignored, since it can differ between
+ * parts (e.g. a bass track re-rendered on a different day).
+ */
 function songKey(name: string): string {
-  return stripExt(name).replace(PART_TOKEN, "#").replace(/\s+/g, " ").trim().toLowerCase();
+  const bare = stripExt(name);
+  const m = bare.match(PART_TOKEN);
+  const prefix = m ? bare.slice(0, m.index) : bare;
+  return prefix
+    .replace(/[\s\-_–—]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 export interface Grouping {
