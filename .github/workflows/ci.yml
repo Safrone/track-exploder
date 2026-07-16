@@ -61,3 +61,39 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential libssl-dev
       - run: npm ci
       - run: npm run tauri build -- --ci
+
+  android:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - run: npm ci
+      - name: Init & build Android debug APK (arm64)
+        run: |
+          npm run tauri android init
+          npm run tauri android build -- --debug --apk --target aarch64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: track-exploder-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*debug*.apk
+          if-no-files-found: error

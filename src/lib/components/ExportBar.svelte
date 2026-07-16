@@ -12,6 +12,9 @@
   import ProgressBar from "./ProgressBar.svelte";
   import RecentExports from "./RecentExports.svelte";
   import BulkExport from "./BulkExport.svelte";
+  import { isDesktop } from "../platform";
+
+  const desktop = isDesktop();
 
   let format = $state<ExportFormat>("wav");
   let bitDepth = $state<BitDepth>(24);
@@ -156,7 +159,9 @@
       {busy ? "Working…" : "Export mix"}
     </button>
 
-    <BulkExport {format} {bitDepth} />
+    {#if desktop}
+      <BulkExport {format} {bitDepth} />
+    {/if}
 
     {#if message && !busy}
       <span class="msg">{message}</span>

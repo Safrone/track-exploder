@@ -1,7 +1,9 @@
 <script lang="ts">
   import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
   import { exportsList, clearExports } from "../mixer/exports";
+  import { isDesktop } from "../platform";
 
+  const desktop = isDesktop();
   let err = $state("");
   const recent = $derived([...$exportsList].reverse());
 
@@ -37,7 +39,9 @@
           <td class="fname" title={rec.path}>{rec.name}</td>
           <td><button class="link" onclick={() => openFile(rec.path)}>Open</button></td>
           <td>
-            <button class="link" onclick={() => openFolder(rec.path)}>Open folder</button>
+            {#if desktop}
+              <button class="link" onclick={() => openFolder(rec.path)}>Open folder</button>
+            {/if}
           </td>
         </tr>
       {/each}
