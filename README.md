@@ -2,40 +2,21 @@
 
 # Track Exploder
 
-**Turn barbershop "part-predominant" learning tracks into a full mixing desk.**
+**Create customized barbershop learning tracks from part isolated tracks.**
 
-Many a cappella learning tracks (especially barbershop) are sold as **"part-left" / "part-right"** files: one voice is hard-panned to a single stereo channel while the other three parts are summed on the opposite channel. Track Exploder loads the four files for a song (tenor, lead, baritone, bass), pulls out each isolated voice, and lets you build **any mix you want** — solo a part, drop your own part out to sing along, rebalance levels, re-pan, slow it down for practice **without changing the pitch**, and export.
-
-> Status: early development (v0.x). Desktop first (macOS / Windows / Linux); Android & iOS are on the roadmap via the same codebase.
-
-## How it works
-
-Each source file is stereo, with one part isolated on one channel:
-
-```
-tenor.wav   →  L = TENOR      R = lead + bari + bass
-lead.wav    →  L = LEAD       R = tenor + bari + bass
-bari.wav    →  L = BARITONE   R = tenor + lead + bass
-bass.wav    →  L = BASS       R = tenor + lead + bari
-```
-
-Extracting a clean part is therefore just **taking the isolated channel** from each file. Track Exploder does this for all four (the isolated channel is selectable **left or right** per file, since some publishers pan the other way), giving four clean **mono stems**. Everything after that is a mixer over those stems.
+Most barbershop learning tracks are provided as **"part-left" / "part-right"** files: one voice is hard-panned to a single stereo channel while the other three parts are summed on the opposite channel. Track Exploder loads the four files for a song (tenor, lead, baritone, bass), pulls out each isolated voice, and lets you build **any mix you want** — solo a part, drop your own part out to sing along, rebalance levels, re-pan, slow it down for practice **without changing the pitch**, and export.
 
 ## Features
 
 - **Load the four part tracks** and auto-extract each voice.
 - **Per-track channel selection** (left / right) in case the isolated part is panned the other way.
 - **Mixer per part**: include/exclude, gain, pan, solo, mute.
-- **Barbershop presets**:
-  - *Solo* a single part.
-  - *Part-off* — everyone **except** one part (sing the missing voice).
-  - *Part-predominant* — one part louder, the rest quieter.
-  - *Learning-track layout* — recreate the original "your part on one side" format for any voice.
-  - *Full mix*.
 - **Preview before export** with transport + waveform.
 - **Tempo change without pitch change** (0.5×–1.5×) for slow practice — powered by [Signalsmith Stretch](https://signalsmith-audio.co.uk/code/stretch/) (MIT).
+- **Save export presets** for quick re-use.
 - **Export** to WAV / FLAC (MP3 optional; see licensing note below).
 - **Keeps common tags** (album, title, date, genre, …) that all four source files share, writing them into FLAC and MP3 exports. Per-part tags like the voice name drop out automatically. (WAV tag chunks are not yet written.)
+- **Bulk Export** to easily generate custom tracks
 
 ## Tech stack
 

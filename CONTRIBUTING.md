@@ -1,12 +1,5 @@
 # Contributing to Track Exploder
 
-Thanks for your interest! This project is in early development, so issues, ideas, and PRs are all welcome.
-
-## Ground rules
-
-- Be kind — see the [Code of Conduct](CODE_OF_CONDUCT.md).
-- **Never commit copyrighted audio** (learning tracks, commercial recordings). Use your own synthetic or licensed test files; `samples/` is git-ignored.
-
 ## Getting set up
 
 See the [Development](README.md#development) section of the README for prerequisites and commands.
