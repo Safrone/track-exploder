@@ -72,20 +72,24 @@ jobs:
           cat > "$HOME/.rpmmacros" <<EOF
           %_signature gpg
           %_gpg_name $GPG_KEY_ID
-          %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file /tmp/te-gpg-pass --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file /tmp/te-gpg-pass --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
           EOF
-          # Cargo workspace is rooted at the repo, so bundles land in ./target
-          # (fall back to src-tauri/target just in case).
-          rpm=$(find target src-tauri/target -name '*.rpm' -print -quit 2>/dev/null || true)
-          if [ -z "$rpm" ]; then echo "No RPM found" >&2; find . -name '*.rpm' 2>/dev/null; exit 1; fi
-          echo "Signing $rpm"
-          rpm --addsign "$rpm"
+          # Cargo workspace is rooted at the repo, so bundles land in ./target.
+          src=$(find target src-tauri/target -name '*.rpm' -print -quit 2>/dev/null || true)
+          if [ -z "$src" ]; then echo "No RPM found" >&2; find . -name '*.rpm' 2>/dev/null; exit 1; fi
+          # The product name has a space ("Track Exploder"), which rpm's signer
+          # can't handle in a path. Sign a space-free copy named exactly like the
+          # asset tauri-action uploaded (spaces -> dots) so --clobber replaces it.
+          asset="$(basename "$src" | tr ' ' '.')"
+          cp "$src" "$asset"
+          echo "Signing $asset"
+          rpm --addsign "$asset"
           # Import the public key into rpm's keyring so checksig fully verifies.
           gpg --export --armor "$GPG_KEY_ID" > track-exploder-signing-key.asc
           sudo rpm --import track-exploder-signing-key.asc
-          rpm --checksig "$rpm"
+          rpm --checksig "$asset"
           shred -u /tmp/te-gpg-pass 2>/dev/null || rm -f /tmp/te-gpg-pass
-          gh release upload "${GITHUB_REF_NAME}" "$rpm" track-exploder-signing-key.asc --clobber
+          gh release upload "${GITHUB_REF_NAME}" "$asset" track-exploder-signing-key.asc --clobber
 
   android:
     name: Android APK (arm64)
