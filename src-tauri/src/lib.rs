@@ -51,7 +51,7 @@ fn read_file_bytes(app: &tauri::AppHandle, path: &str) -> Result<Vec<u8>, String
 }
 
 fn bytes_to_f32(bytes: &[u8]) -> Result<Vec<f32>, String> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return Err("PCM byte length is not a multiple of 4".into());
     }
     Ok(bytes
@@ -242,7 +242,12 @@ fn android_display_name(
 
     let col = env.new_string("_display_name").ok()?;
     let idx = env
-        .call_method(&cursor, "getColumnIndex", "(Ljava/lang/String;)I", &[(&col).into()])
+        .call_method(
+            &cursor,
+            "getColumnIndex",
+            "(Ljava/lang/String;)I",
+            &[(&col).into()],
+        )
         .ok()?
         .i()
         .ok()?;
@@ -254,7 +259,8 @@ fn android_display_name(
         .and_then(|v| v.z().ok())
         .unwrap_or(false);
     if idx >= 0 && has_row {
-        if let Ok(v) = env.call_method(&cursor, "getString", "(I)Ljava/lang/String;", &[idx.into()]) {
+        if let Ok(v) = env.call_method(&cursor, "getString", "(I)Ljava/lang/String;", &[idx.into()])
+        {
             if let Ok(jstr) = v.l() {
                 if let Ok(s) = env.get_string(&JString::from(jstr)) {
                     name = Some(s.into());
