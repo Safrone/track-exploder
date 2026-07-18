@@ -7,10 +7,11 @@
   }
   let { open, onClose }: Props = $props();
 
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
   const REPO_URL: string = "https://github.com/Safrone/track-exploder";
   const AUTHOR = "Eric Blum";
   const CONTACT: string = "eblumster@gmail.com"; // empty hides the row
+  const KOFI_URL: string = "https://ko-fi.com/safrone"; // empty hides the row
 
   const YEAR = 2026;
 
@@ -71,10 +72,13 @@
         </p>
       </div>
 
-      {#if REPO_URL || CONTACT}
+      {#if REPO_URL || CONTACT || KOFI_URL}
         <div class="links">
           {#if REPO_URL}
             <button class="link-btn" onclick={() => link(REPO_URL)}>GitHub repository</button>
+          {/if}
+          {#if KOFI_URL}
+            <button class="link-btn" onclick={() => link(KOFI_URL)}>Support on Ko-fi</button>
           {/if}
           {#if CONTACT}
             <button class="link-btn" onclick={() => link(`mailto:${CONTACT}`)}>Contact</button>
@@ -82,7 +86,14 @@
         </div>
       {/if}
 
-      <footer>© {YEAR} {AUTHOR}. MIT-licensed open source.</footer>
+      <footer>
+        © {YEAR}
+        {#if KOFI_URL}
+          <button class="inline-link" onclick={() => link(KOFI_URL)}>{AUTHOR}</button>
+        {:else}
+          {AUTHOR}
+        {/if}. MIT-licensed open source.
+      </footer>
     </div>
   </div>
 {/if}
