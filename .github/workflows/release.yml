@@ -43,7 +43,8 @@ jobs:
       - run: npm ci
       # Builds installers and attaches them to a draft GitHub release for the tag.
       # MP3 export is enabled (--features mp3 → pure-Rust shine-rs, LGPL).
-      # Installers are unsigned for now; users may see OS security prompts (documented in README).
+      # macOS/Windows installers are unsigned (users may see OS prompts, documented
+      # in README); the Linux RPM is GPG-signed in the step below.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,6 +54,36 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # GPG-sign the RPM and replace the unsigned one on the release, plus attach
+      # the public key so users can `rpm --import` it and verify.
+      - name: Sign the Linux RPM
+        if: matrix.platform == 'ubuntu-latest'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: 3A1F4A9A5EF1A7F1
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y rpm
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          printf '%s' "$GPG_PASSPHRASE" > /tmp/te-gpg-pass
+          cat > "$HOME/.rpmmacros" <<EOF
+          %_signature gpg
+          %_gpg_name $GPG_KEY_ID
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file /tmp/te-gpg-pass --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
+          EOF
+          rpm=$(find src-tauri/target -name '*.rpm' -print -quit)
+          if [ -z "$rpm" ]; then echo "No RPM found" >&2; exit 1; fi
+          echo "Signing $rpm"
+          rpm --addsign "$rpm"
+          # Import the public key into rpm's keyring so checksig fully verifies.
+          gpg --export --armor "$GPG_KEY_ID" > track-exploder-signing-key.asc
+          sudo rpm --import track-exploder-signing-key.asc
+          rpm --checksig "$rpm"
+          shred -u /tmp/te-gpg-pass 2>/dev/null || rm -f /tmp/te-gpg-pass
+          gh release upload "${GITHUB_REF_NAME}" "$rpm" track-exploder-signing-key.asc --clobber
 
   android:
     name: Android APK (arm64)

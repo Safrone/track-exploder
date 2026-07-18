@@ -36,6 +36,21 @@ The Rust side is split into a pure-DSP crate (`crates/audio-core`) with no GUI d
 
 I've had some issues running the preview audio on bluetooth headphones. So try using the speakers or wired headphones for now until that can be sorted out.
 
+## Installing
+
+Prebuilt installers are attached to each [release](../../releases).
+
+- **macOS / Windows** builds are unsigned, so you'll see a Gatekeeper / SmartScreen prompt. On macOS, right-click the app → **Open**; on Windows, **More info → Run anyway**.
+- **Linux RPM** is GPG-signed. Import the signing key once (attached to the release as `track-exploder-signing-key.asc`), then install:
+
+  ```bash
+  sudo rpm --import track-exploder-signing-key.asc
+  sudo zypper install ./Track.Exploder-*.rpm      # openSUSE
+  # or verify explicitly:  rpm -K ./Track.Exploder-*.rpm
+  ```
+
+  Without importing the key you'll get a "package is not signed / signature verification failed" warning; you can still install with `sudo zypper install --allow-unsigned-rpm <file>`.
+
 ## Development
 
 Prerequisites:
