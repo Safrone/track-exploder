@@ -6,6 +6,8 @@
 
 Most barbershop learning tracks are provided as **"part-left" / "part-right"** files: one voice is hard-panned to a single stereo channel while the other three parts are summed on the opposite channel. Track Exploder loads the four files for a song (tenor, lead, baritone, bass), pulls out each isolated voice, and lets you build **any mix you want** — solo a part, drop your own part out to sing along, rebalance levels, re-pan, slow it down for practice **without changing the pitch**, and export.
 
+<p align="center"><img src="docs/screenshot.png" alt="Track Exploder in use: four part strips with gain/pan/mute controls, a stereo waveform, transport with tempo and master gain, mix presets, and export options" width="900" /></p>
+
 ## Features
 
 - **Load the four part tracks** and auto-extract each voice.
