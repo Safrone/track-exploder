@@ -58,6 +58,31 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          releaseBody: |
+            Extract and remix barbershop part-left learning tracks — isolate each voice, build any mix, change tempo without changing pitch, and export. MP3 export is enabled in these builds.
+
+            ## Which download do I need?
+
+            | Your system | File to download |
+            | --- | --- |
+            | **Windows** | the `_x64-setup.exe` (or `.msi`) — unsigned; SmartScreen → **More info → Run anyway** |
+            | **macOS — Apple Silicon** (M1–M4) | the `_aarch64.dmg` — unsigned; **right-click → Open** the first time |
+            | **macOS — Intel** | the `_x64.dmg` — unsigned; **right-click → Open** the first time |
+            | **Linux — openSUSE / Fedora / RHEL** | the `.rpm` — GPG-signed (import `track-exploder-signing-key.asc` first) |
+            | **Linux — Debian / Ubuntu** | the `_amd64.deb` |
+            | **Linux — portable** | the `_amd64.AppImage` (`chmod +x`, then run) |
+            | **Android** (arm64) | the `_android-arm64.apk` (debug-signed) |
+
+            The `*.app.tar.gz` files are auto-update artifacts — ignore them for a normal install.
+
+            ## Verify the RPM (openSUSE / Fedora)
+
+            ```bash
+            sudo rpm --import track-exploder-signing-key.asc
+            sudo zypper install ./Track.Exploder-*.rpm    # or: sudo dnf install on Fedora
+            ```
+
+            Signing key fingerprint: `3A1F 4A9A 5EF1 A7F1`. macOS/Windows builds are unsigned (no code-signing certs yet); the steps above clear the OS prompts.
 
       # GPG-sign the RPM and replace the unsigned one on the release, plus attach
       # the public key so users can `rpm --import` it and verify.
