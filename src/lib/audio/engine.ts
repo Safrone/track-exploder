@@ -43,7 +43,11 @@ export class MixEngine {
   onStretching?: (active: boolean) => void;
 
   constructor() {
-    this.ctx = new AudioContext();
+    // `playback` requests a larger output buffer than the default `interactive`.
+    // High-latency sinks (Bluetooth) underrun the small interactive buffer —
+    // audio plays for a fraction of a second, then drops out. We don't need
+    // low latency for a transport-driven preview, so favor stable playback.
+    this.ctx = new AudioContext({ latencyHint: "playback" });
     this.masterGain = this.ctx.createGain();
     this.mixBus = this.ctx.createGain();
     this.mixBus.connect(this.masterGain);
