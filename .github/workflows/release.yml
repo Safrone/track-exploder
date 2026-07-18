@@ -7,18 +7,22 @@ on:
 
 jobs:
   release:
-    name: Build & release (${{ matrix.platform }})
+    name: Build & release (${{ matrix.label }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
+            label: macOS (Apple Silicon)
             args: "--target aarch64-apple-darwin --features mp3"
           - platform: macos-latest
+            label: macOS (Intel)
             args: "--target x86_64-apple-darwin --features mp3"
           - platform: ubuntu-latest
+            label: Linux
             args: "--features mp3"
           - platform: windows-latest
+            label: Windows
             args: "--features mp3"
     runs-on: ${{ matrix.platform }}
     permissions:
