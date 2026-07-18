@@ -7,7 +7,7 @@
   }
   let { open, onClose }: Props = $props();
 
-  const VERSION = "0.2.0";
+  const VERSION = "1.0.0";
   const REPO_URL: string = "https://github.com/Safrone/track-exploder";
   const AUTHOR = "Eric Blum";
   const CONTACT: string = "eblumster@gmail.com"; // empty hides the row

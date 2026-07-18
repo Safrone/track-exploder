@@ -1,6 +1,6 @@
 {
   "name": "track-exploder",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Extract and remix barbershop 'part-predominant' learning tracks: isolate each voice from part-left/right stereo tracks, build any mix, preview, change tempo without pitch, and export.",
   "license": "MIT",
   "type": "module",

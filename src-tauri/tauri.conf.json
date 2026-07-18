@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Track Exploder",
-  "version": "0.2.0",
-  "identifier": "com.enertiv.trackexploder",
+  "version": "1.0.0",
+  "identifier": "com.safrone.trackexploder",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",

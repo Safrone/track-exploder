@@ -215,7 +215,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "audio-core"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "flacenc",
  "hound",
@@ -4477,7 +4477,7 @@ dependencies = [
 
 [[package]]
 name = "track-exploder"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "audio-core",
  "jni",
