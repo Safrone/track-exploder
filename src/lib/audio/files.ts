@@ -1,4 +1,4 @@
-import { writeFile, remove } from "@tauri-apps/plugin-fs";
+import { writeFile, remove, mkdir } from "@tauri-apps/plugin-fs";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 
 /**
@@ -21,6 +21,9 @@ let tempSeq = 0;
  */
 export async function writeTempPcm(data: Uint8Array): Promise<string> {
   const dir = await appCacheDir();
+  // The app cache dir may not exist yet (e.g. a fresh Linux profile), which
+  // would make writeFile fail with ENOENT — create it first.
+  await mkdir(dir, { recursive: true }).catch(() => {});
   const path = await join(dir, `te-pcm-${tempSeq++}.bin`);
   await writeFile(path, data);
   return path;
