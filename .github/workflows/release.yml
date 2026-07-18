@@ -74,8 +74,10 @@ jobs:
           %_gpg_name $GPG_KEY_ID
           %__gpg_sign_cmd %{__gpg} gpg --batch --no-verbose --no-armor --pinentry-mode loopback --passphrase-file /tmp/te-gpg-pass --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
           EOF
-          rpm=$(find src-tauri/target -name '*.rpm' -print -quit)
-          if [ -z "$rpm" ]; then echo "No RPM found" >&2; exit 1; fi
+          # Cargo workspace is rooted at the repo, so bundles land in ./target
+          # (fall back to src-tauri/target just in case).
+          rpm=$(find target src-tauri/target -name '*.rpm' -print -quit 2>/dev/null || true)
+          if [ -z "$rpm" ]; then echo "No RPM found" >&2; find . -name '*.rpm' 2>/dev/null; exit 1; fi
           echo "Signing $rpm"
           rpm --addsign "$rpm"
           # Import the public key into rpm's keyring so checksig fully verifies.
