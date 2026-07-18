@@ -13,6 +13,7 @@
   import RecentExports from "./RecentExports.svelte";
   import BulkExport from "./BulkExport.svelte";
   import { isDesktop } from "../platform";
+  import { toast } from "../toast";
 
   const desktop = isDesktop();
 
@@ -104,12 +105,13 @@
         format,
         at: Date.now(),
       });
-      message = "Exported ✓";
+      toast(`Exported ${fileName}`, "success");
     } catch (err) {
-      message = `Export failed: ${err}`;
+      toast(`Export failed: ${err}`, "error");
     } finally {
       busy = false;
       progress = 0;
+      message = "";
     }
   }
 
@@ -168,10 +170,6 @@
 
     {#if desktop}
       <BulkExport {format} {bitDepth} />
-    {/if}
-
-    {#if message && !busy}
-      <span class="msg">{message}</span>
     {/if}
   </div>
 
@@ -272,10 +270,6 @@
   .go:disabled {
     opacity: 0.6;
     cursor: default;
-  }
-  .msg {
-    font-size: 0.8rem;
-    color: var(--text-dim);
   }
   .tags {
     font-size: 0.78rem;

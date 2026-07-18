@@ -22,12 +22,13 @@
   import ProgressBar from "./lib/components/ProgressBar.svelte";
   import RecentExports from "./lib/components/RecentExports.svelte";
   import About from "./lib/components/About.svelte";
+  import Toaster from "./lib/components/Toaster.svelte";
+  import { toast } from "./lib/toast";
   import { exportsList } from "./lib/mixer/exports";
 
   const WAVE_BUCKETS = 1000;
 
   let loading = $state(false);
-  let status = $state("");
   let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
   let showAbout = $state(false);
   let envelope = $state<StereoEnvelope | null>(null);
@@ -52,13 +53,12 @@
   // auto-detect the part from).
   async function onLoadPart(part: Part) {
     if (!tauri) {
-      status = "File loading needs the app (not a plain browser).";
+      toast("File loading needs the app (not a plain browser).", "error");
       return;
     }
     const path = await pickOneAudioFile();
     if (!path) return;
     loading = true;
-    status = `Loading ${part}…`;
     try {
       const name = await displayName(path);
       await loadPart(getEngine(), part, path, snapshot().sourceChannel, name);
@@ -68,9 +68,9 @@
       } catch {
         /* tags best-effort */
       }
-      status = `Loaded ${part}`;
+      toast(`Loaded ${part}`, "success");
     } catch (err) {
-      status = `Load failed: ${err}`;
+      toast(`Load failed: ${err}`, "error");
     } finally {
       loading = false;
     }
@@ -78,11 +78,10 @@
 
   async function onLoad() {
     if (!tauri) {
-      status = "File loading needs the desktop app (run `npm run tauri dev`).";
+      toast("File loading needs the desktop app (run `npm run tauri dev`).", "error");
       return;
     }
     loading = true;
-    status = "Decoding…";
     clearTags();
     try {
       const report = await pickAndLoad(
@@ -108,15 +107,16 @@
         }),
       );
 
-      status =
-        report.loaded.length > 0
-          ? `Loaded: ${report.loaded.join(", ")}` +
-            (report.unassigned.length
-              ? ` · couldn't match: ${report.unassigned.map(basename).join(", ")}`
-              : "")
-          : "No parts matched. Name files with tenor/lead/bari/bass.";
+      if (report.loaded.length > 0) {
+        toast(`Loaded: ${report.loaded.join(", ")}`, "success");
+        if (report.unassigned.length) {
+          toast(`Couldn't match: ${report.unassigned.map(basename).join(", ")}`, "info");
+        }
+      } else {
+        toast("No parts matched. Name files with tenor/lead/bari/bass.", "error");
+      }
     } catch (err) {
-      status = `Load failed: ${err}`;
+      toast(`Load failed: ${err}`, "error");
     } finally {
       loading = false;
       loadProgress = null;
@@ -132,15 +132,14 @@
     if (!engine || !PARTS.some((p) => tracks[p])) return;
 
     loading = true;
-    status = "Re-extracting…";
     try {
       await reExtractAll(engine, tracks, channel, (done, total, part) => {
         loadProgress = { done, total, part };
       });
       engine.applyMix(snapshot());
-      status = `Isolated part read from ${channel} channel`;
+      toast(`Isolated part read from ${channel} channel`, "success");
     } catch (err) {
-      status = `Re-extract failed: ${err}`;
+      toast(`Re-extract failed: ${err}`, "error");
     } finally {
       loading = false;
       loadProgress = null;
@@ -166,6 +165,7 @@
   </header>
 
   <About open={showAbout} onClose={() => (showAbout = false)} />
+  <Toaster />
 
   {#if !tauri}
     <div class="banner">
@@ -179,8 +179,6 @@
       value={loadProgress.total ? loadProgress.done / loadProgress.total : 0}
       label={`Decoding ${loadProgress.part} · ${loadProgress.done}/${loadProgress.total}`}
     />
-  {:else if status}
-    <div class="status">{status}</div>
   {/if}
 
   {#if hasTracks}
@@ -320,12 +318,8 @@
     padding: 0.6rem 0.85rem;
     font-size: 0.85rem;
   }
-  .banner code,
-  .status {
+  .banner code {
     font-size: 0.85rem;
-  }
-  .status {
-    color: var(--text-dim);
   }
   .mixhead h2 {
     margin: 0 0 0.15rem;

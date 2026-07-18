@@ -1,7 +1,8 @@
 <script lang="ts">
   import { mixer, patchState } from "../mixer/store";
-  import { getEngine, position, duration, isPlaying, isStretching } from "../audio/playback";
+  import { getEngine, position, duration, isPlaying, stretchProgress } from "../audio/playback";
   import { resetOnDblClick } from "../actions";
+  import ProgressBar from "./ProgressBar.svelte";
 
   // Local slider value while dragging; committed to the store on release so the
   // stems are only re-stretched once (not on every input tick).
@@ -58,7 +59,9 @@
         onchange={(e) => patchState({ tempoEnabled: e.currentTarget.checked })}
       />
       Tempo{$mixer.tempoEnabled
-        ? ` ${Math.round(dragTempo * 100)}%${$isStretching ? " · preparing…" : ""}`
+        ? ` ${Math.round(dragTempo * 100)}%${
+            $stretchProgress ? ` · stretching ${$stretchProgress.done}/${$stretchProgress.total}` : ""
+          }`
         : ""}
     </label>
     <input
@@ -67,11 +70,16 @@
       max="1.5"
       step="0.05"
       value={dragTempo}
-      disabled={!$mixer.tempoEnabled || $isStretching}
+      disabled={!$mixer.tempoEnabled || !!$stretchProgress}
       use:resetOnDblClick={1}
       oninput={(e) => (dragTempo = +e.currentTarget.value)}
       onchange={(e) => patchState({ tempo: +e.currentTarget.value })}
     />
+    {#if $stretchProgress}
+      <ProgressBar
+        value={$stretchProgress.total ? $stretchProgress.done / $stretchProgress.total : 0}
+      />
+    {/if}
   </div>
 
   <label class="master">

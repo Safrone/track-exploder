@@ -40,7 +40,8 @@ export class MixEngine {
 
   onPosition?: (seconds: number, duration: number) => void;
   onEnded?: () => void;
-  onStretching?: (active: boolean) => void;
+  /** Progress of tempo pre-stretch: `{done, total}` while active, `null` when idle. */
+  onStretching?: (progress: { done: number; total: number } | null) => void;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -146,11 +147,14 @@ export class MixEngine {
     if (this.preparedTempo === this.tempo) return;
 
     const target = this.tempo;
-    this.onStretching?.(true);
+    const total = this.buffers.size;
+    this.onStretching?.({ done: 0, total });
     this.preparing = (async () => {
       const next = new Map<Part, AudioBuffer>();
+      let done = 0;
       for (const [part, buf] of this.buffers) {
         next.set(part, await stretchStem(this.ctx, buf.getChannelData(0), buf.sampleRate, target));
+        this.onStretching?.({ done: ++done, total });
       }
       this.playbackBuffers = next;
       this.preparedTempo = target;
@@ -159,7 +163,7 @@ export class MixEngine {
       await this.preparing;
     } finally {
       this.preparing = null;
-      this.onStretching?.(false);
+      this.onStretching?.(null);
     }
   }
 
