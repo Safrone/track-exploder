@@ -51,7 +51,7 @@ Prebuilt installers are attached to each [release](../../releases).
 
   Without importing the key you'll get a "package is not signed / signature verification failed" warning; you can still install with `sudo zypper install --allow-unsigned-rpm <file>`.
 
-- **Linux on NVIDIA:** prefer the **RPM or `.deb`** over the AppImage. The AppImage bundles its own WebKitGTK/GL libraries, which can conflict with the NVIDIA driver and show a blank white window; the RPM/deb use your system WebKitGTK and work. The app disables WebKitGTK's DMABUF renderer on Linux automatically to avoid the related `EGL_BAD_ALLOC` crash — override with `WEBKIT_DISABLE_DMABUF_RENDERER=0` if you ever need to.
+- **Linux:** the RPM and `.deb` use your system WebKitGTK and are the supported formats. (No AppImage — its bundled WebKitGTK/GL libraries white-screen on NVIDIA drivers.) The app disables WebKitGTK's DMABUF renderer on Linux automatically to avoid an `EGL_BAD_ALLOC` crash on some GPUs (notably NVIDIA); override with `WEBKIT_DISABLE_DMABUF_RENDERER=0` if you ever need to.
 
 ## Development
 

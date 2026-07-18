@@ -20,7 +20,9 @@ jobs:
             args: "--target x86_64-apple-darwin --features mp3"
           - platform: ubuntu-latest
             label: Linux
-            args: "--features mp3"
+            # No AppImage: it bundles WebKitGTK/GL libs that white-screen on
+            # NVIDIA. The deb/rpm use system WebKitGTK and work.
+            args: "--features mp3 --bundles deb,rpm"
           - platform: windows-latest
             label: Windows
             args: "--features mp3"
@@ -70,7 +72,6 @@ jobs:
             | **macOS — Intel** | the `_x64.dmg` — unsigned; **right-click → Open** the first time |
             | **Linux — openSUSE / Fedora / RHEL** | the `.rpm` — GPG-signed (import `track-exploder-signing-key.asc` first) |
             | **Linux — Debian / Ubuntu** | the `_amd64.deb` |
-            | **Linux — portable** | the `_amd64.AppImage` (`chmod +x`, then run) |
             | **Android** (arm64) | the `_android-arm64.apk` (debug-signed) |
 
             The `*.app.tar.gz` files are auto-update artifacts — ignore them for a normal install.
