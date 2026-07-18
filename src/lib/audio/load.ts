@@ -122,10 +122,31 @@ export interface LoadReport {
 export type LoadProgress = (done: number, total: number, part: Part) => void;
 
 /**
+ * Decode a set of part/file assignments into the engine concurrently (each stem
+ * decodes on its own Rust thread), reporting progress as each finishes.
+ */
+async function loadAll(
+  engine: MixEngine,
+  items: { part: Part; path: string; name?: string }[],
+  channel: Channel,
+  onProgress?: LoadProgress,
+): Promise<void> {
+  const total = items.length;
+  let done = 0;
+  if (total) onProgress?.(0, total, items[0].part);
+  await Promise.all(
+    items.map(async ({ part, path, name }) => {
+      await loadPart(engine, part, path, channel, name);
+      onProgress?.(++done, total, part);
+    }),
+  );
+}
+
+/**
  * Pick files, guess each part (by filename, falling back to metadata tags for
  * Android content URIs), and decode the matched ones (default channel: left).
- * Reports progress as each file finishes decoding. Returns which parts loaded
- * and any files that couldn't be auto-assigned.
+ * Part resolution and decoding both run concurrently across files. Returns which
+ * parts loaded and any files that couldn't be auto-assigned.
  */
 export async function pickAndLoad(
   engine: MixEngine,
@@ -134,12 +155,16 @@ export async function pickAndLoad(
 ): Promise<LoadReport> {
   const paths = await pickAudioFiles();
 
-  // Resolve part assignments up front so we know the total to decode.
+  // Resolve every file's part concurrently, then assign deterministically in the
+  // picked order (first file wins a part; a duplicate part goes to unassigned).
+  const resolved = await Promise.all(
+    paths.map(async (path) => ({ path, ...(await resolvePart(path)) })),
+  );
+
   const assignments: { part: Part; path: string; name: string }[] = [];
   const unassigned: string[] = [];
   const taken = new Set<Part>();
-  for (const path of paths) {
-    const { part, name } = await resolvePart(path);
+  for (const { part, path, name } of resolved) {
     if (part && !taken.has(part)) {
       taken.add(part);
       assignments.push({ part, path, name });
@@ -148,16 +173,8 @@ export async function pickAndLoad(
     }
   }
 
-  const loaded: Part[] = [];
-  const total = assignments.length;
-  for (let i = 0; i < total; i++) {
-    const { part, path, name } = assignments[i];
-    onProgress?.(i, total, part);
-    await loadPart(engine, part, path, channel, name);
-    loaded.push(part);
-    onProgress?.(i + 1, total, part);
-  }
-  return { loaded, unassigned };
+  await loadAll(engine, assignments, channel, onProgress);
+  return { loaded: assignments.map((a) => a.part), unassigned };
 }
 
 /** Re-extract every already-loaded track from the given channel (with progress). */
@@ -167,11 +184,10 @@ export async function reExtractAll(
   channel: Channel,
   onProgress?: LoadProgress,
 ): Promise<void> {
-  const parts = PARTS.filter((p) => tracks[p]);
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    onProgress?.(i, parts.length, part);
-    await loadPart(engine, part, tracks[part]!.path, channel, tracks[part]!.name);
-    onProgress?.(i + 1, parts.length, part);
-  }
+  const items = PARTS.filter((p) => tracks[p]).map((part) => ({
+    part,
+    path: tracks[part]!.path,
+    name: tracks[part]!.name,
+  }));
+  await loadAll(engine, items, channel, onProgress);
 }

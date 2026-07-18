@@ -147,16 +147,20 @@ export class MixEngine {
     if (this.preparedTempo === this.tempo) return;
 
     const target = this.tempo;
-    const total = this.buffers.size;
+    const entries = [...this.buffers];
+    const total = entries.length;
     this.onStretching?.({ done: 0, total });
     this.preparing = (async () => {
-      const next = new Map<Part, AudioBuffer>();
+      // Stretch every stem concurrently — each runs on its own Rust thread.
       let done = 0;
-      for (const [part, buf] of this.buffers) {
-        next.set(part, await stretchStem(this.ctx, buf.getChannelData(0), buf.sampleRate, target));
-        this.onStretching?.({ done: ++done, total });
-      }
-      this.playbackBuffers = next;
+      const stretched = await Promise.all(
+        entries.map(async ([part, buf]) => {
+          const out = await stretchStem(this.ctx, buf.getChannelData(0), buf.sampleRate, target);
+          this.onStretching?.({ done: ++done, total });
+          return [part, out] as const;
+        }),
+      );
+      this.playbackBuffers = new Map(stretched);
       this.preparedTempo = target;
     })();
     try {
