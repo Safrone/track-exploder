@@ -32,6 +32,10 @@ Most barbershop learning tracks are provided as **"part-left" / "part-right"** f
 
 The Rust side is split into a pure-DSP crate (`crates/audio-core`) with no GUI dependencies (unit-testable in isolation) and a thin Tauri app crate (`src-tauri`).
 
+## Known Issues
+
+I've had some issues running the preview audio on bluetooth headphones. So try using the speakers or wired headphones for now until that can be sorted out.
+
 ## Development
 
 Prerequisites:
