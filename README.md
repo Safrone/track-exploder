@@ -34,7 +34,14 @@ The Rust side is split into a pure-DSP crate (`crates/audio-core`) with no GUI d
 
 ## Known Issues
 
-I've had some issues running the preview audio on bluetooth headphones. So try using the speakers or wired headphones for now until that can be sorted out.
+- I've had some issues running the preview audio on bluetooth headphones. So try using the speakers or wired headphones for now until that can be sorted out.
+- It assumes that the input tracks are perfectly lined. Discrepancies will lead to unaligned output
+- It does not do any processing to remove bleed if the predominant track is not panned with no bleed from the other parts (some tracks I have seen have a little bleedover)
+
+## Future features
+
+- automatic identification of misaligned tracks, track nudging
+- adding test tracks for the sake of running tests and testing edge cases and UI interactions
 
 ## Installing
 
