@@ -31,10 +31,18 @@ export interface RenderedMix {
 }
 
 /**
- * Render the current mix offline (the exact permutation shown in the UI) into
+ * Render the current mix (the exact permutation shown in the UI) into
  * interleaved f32 PCM at natural speed. Any tempo change is applied afterward on
  * the native side (Signalsmith Stretch in Rust) — the browser's
  * OfflineAudioContext + AudioWorklet path deadlocks, so we don't stretch here.
+ *
+ * The mixdown is done in plain arithmetic rather than through an
+ * `OfflineAudioContext`: WebKitGTK (the Linux/macOS webview) implements
+ * `StereoPannerNode` in a realtime context but treats it as a passthrough when
+ * rendering offline, so an exported mix came out with every part centred no
+ * matter how it was panned. Doing the pan math here — the same equal-power law
+ * `StereoPannerNode` uses for a mono source — makes the export match the preview
+ * on every platform.
  */
 export async function renderMix(
   source: RenderSource,
@@ -42,41 +50,36 @@ export async function renderMix(
   mode: OutputMode,
 ): Promise<RenderedMix> {
   const sampleRate = source.ctx.sampleRate;
-  const length = Math.max(1, Math.ceil(source.duration * sampleRate));
 
-  const offline = new OfflineAudioContext(2, length, sampleRate);
-  const master = offline.createGain();
-  master.gain.value = state.masterGain;
-  master.connect(offline.destination);
-
+  // Gather the audible parts with their left/right gains. Equal-power pan
+  // (StereoPannerNode's law): a centred part sits at cos(45°)=sin(45°)≈0.707 in
+  // each channel, hard-left at 1/0, hard-right at 0/1.
+  const voices: { data: Float32Array; gl: number; gr: number }[] = [];
+  let length = Math.max(1, Math.ceil(source.duration * sampleRate));
   for (const part of PARTS) {
     const buffer = source.getBuffer(part);
-    const gainValue = effectiveGain(state, part);
-    if (!buffer || gainValue === 0) continue;
-
-    const gain = offline.createGain();
-    gain.gain.value = gainValue;
-    const pan = offline.createStereoPanner();
-    pan.pan.value = state.mix[part].pan;
-    gain.connect(pan);
-    pan.connect(master);
-
-    const src = offline.createBufferSource();
-    src.buffer = buffer;
-    src.connect(gain);
-    src.start(0);
+    const gain = effectiveGain(state, part) * state.masterGain;
+    if (!buffer || gain === 0) continue;
+    const angle = ((state.mix[part].pan + 1) * Math.PI) / 4; // -1..1 -> 0..π/2
+    const data = buffer.getChannelData(0);
+    length = Math.max(length, data.length);
+    voices.push({ data, gl: Math.cos(angle) * gain, gr: Math.sin(angle) * gain });
   }
 
-  const rendered = await offline.startRendering();
+  const l = new Float32Array(length);
+  const r = new Float32Array(length);
+  for (const v of voices) {
+    const n = v.data.length;
+    for (let i = 0; i < n; i++) {
+      l[i] += v.data[i] * v.gl;
+      r[i] += v.data[i] * v.gr;
+    }
+  }
 
   if (mode === "mono") {
-    const l = rendered.getChannelData(0);
-    const r = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : l;
-    const mono = new Float32Array(l.length);
-    for (let i = 0; i < l.length; i++) mono[i] = (l[i] + r[i]) * 0.5;
+    const mono = new Float32Array(length);
+    for (let i = 0; i < length; i++) mono[i] = (l[i] + r[i]) * 0.5;
     return { pcm: mono, channels: 1, sampleRate };
   }
-
-  const channels = [rendered.getChannelData(0), rendered.getChannelData(1)];
-  return { pcm: interleave(channels), channels: 2, sampleRate };
+  return { pcm: interleave([l, r]), channels: 2, sampleRate };
 }
