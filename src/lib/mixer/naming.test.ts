@@ -22,6 +22,7 @@ function state(over: {
   return {
     tracks,
     mix,
+    alignment: {},
     masterGain: 1,
     tempoEnabled: over.tempoEnabled ?? false,
     tempo: over.tempo ?? 1,

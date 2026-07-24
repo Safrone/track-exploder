@@ -8,12 +8,14 @@
 //! 2. [`extract::extract_channel`] — pull the isolated voice from one channel.
 //! 3. [`encode::encode_interleaved`] — encode a rendered mix to WAV/FLAC/MP3.
 
+pub mod align;
 pub mod decode;
 pub mod encode;
 pub mod extract;
 pub mod metadata;
 pub mod stretch;
 
+pub use align::{align_set, measure_offset, splice, Correction};
 pub use decode::{decode_bytes, decode_file, DecodeError, DecodedAudio};
 pub use encode::{encode_interleaved, BitDepth, EncodeError, ExportFormat};
 pub use extract::{extract_channel, Channel};

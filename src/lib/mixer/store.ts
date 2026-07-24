@@ -2,6 +2,7 @@ import { writable, derived, get } from "svelte/store";
 import {
   PARTS,
   defaultPartMix,
+  type Alignment,
   type Part,
   type PartMix,
   type SourceTrack,
@@ -14,6 +15,8 @@ export interface MixerState {
   tracks: Partial<Record<Part, SourceTrack>>;
   /** Per-part mix settings. */
   mix: Record<Part, PartMix>;
+  /** Per-part timing correction (empty until measured or nudged). */
+  alignment: Partial<Record<Part, Alignment>>;
   masterGain: number;
   /** Whether pitch-preserving tempo processing is enabled (off = no stretch). */
   tempoEnabled: boolean;
@@ -32,6 +35,7 @@ function initialState(): MixerState {
   return {
     tracks: {},
     mix: initialMix(),
+    alignment: {},
     masterGain: 1,
     tempoEnabled: false,
     tempo: 1,
@@ -61,6 +65,21 @@ export function setPartMix(part: Part, patch: Partial<PartMix>): void {
 
 export function setTrack(part: Part, track: SourceTrack): void {
   mixer.update((s) => ({ ...s, tracks: { ...s.tracks, [part]: track } }));
+}
+
+/** Set (or clear, with `undefined`) one part's timing correction. */
+export function setAlignment(part: Part, alignment: Alignment | undefined): void {
+  mixer.update((s) => {
+    const next = { ...s.alignment };
+    if (alignment) next[part] = alignment;
+    else delete next[part];
+    return { ...s, alignment: next };
+  });
+}
+
+/** Drop every timing correction (parts play exactly as decoded). */
+export function clearAlignment(): void {
+  mixer.update((s) => ({ ...s, alignment: {} }));
 }
 
 export function patchState(patch: Partial<MixerState>): void {

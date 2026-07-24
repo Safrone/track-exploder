@@ -26,4 +26,7 @@ Thumbs.db
 /samples/*.mp3
 /samples/*.m4a
 /samples/*.flac
+# Generated test fixtures (recreated by `cargo test -p audio-core`)
+/samples/fixtures/
+/samples/fixtures.tmp-*/
 !/samples/README.md

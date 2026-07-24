@@ -10,6 +10,7 @@ function stateWith(overrides: Partial<Record<Part, Partial<PartMix>>>): MixerSta
   return {
     tracks: {},
     mix,
+    alignment: {},
     masterGain: 1,
     tempoEnabled: false,
     tempo: 1,

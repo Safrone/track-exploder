@@ -11,6 +11,7 @@ Most barbershop learning tracks are provided as **"part-left" / "part-right"** f
 ## Features
 
 - **Load the four part tracks** and auto-extract each voice.
+- **Automatic track alignment** — publishers don't always paste the song in at the same spot in all four files, so parts can play tens (occasionally hundreds) of milliseconds apart. Track Exploder measures the set on load and lines it up, absorbing the correction in the silent gap after the pitch pipe so the spoken intro stays in sync. Every part strip shows its shift and can be nudged by hand.
 - **Per-track channel selection** (left / right) in case the isolated part is panned the other way.
 - **Mixer per part**: include/exclude, gain, pan, solo, mute.
 - **Preview before export** with transport + waveform.
@@ -35,13 +36,19 @@ The Rust side is split into a pure-DSP crate (`crates/audio-core`) with no GUI d
 ## Known Issues
 
 - I've had some issues running the preview audio on bluetooth headphones. So try using the speakers or wired headphones for now until that can be sorted out.
-- It assumes that the input tracks are perfectly lined. Discrepancies will lead to unaligned output
+- Misaligned part files are detected and corrected automatically (and can be nudged per part), but a set whose offset *drifts* through the song can only be got close — the strip flags those with a ± figure.
 - It does not do any processing to remove bleed if the predominant track is not panned with no bleed from the other parts (some tracks I have seen have a little bleedover)
 
 ## Future features
 
-- automatic identification of misaligned tracks, track nudging
-- adding test tracks for the sake of running tests and testing edge cases and UI interactions
+- more edge cases and UI interactions on top of the generated test tracks (see [Test audio](#test-audio))
+- bleed reduction for sets where the isolated side isn't cleanly panned
+
+To check a whole library for timing problems without opening the app:
+
+```bash
+cargo run --release -p audio-core --example check_alignment -- "/path/to/album folder"
+```
 
 ## Installing
 
@@ -79,15 +86,45 @@ npm run tauri dev
 # Type-check the frontend:
 npm run check
 
-# Unit tests (frontend mix math):
+# Tests (frontend mix math, naming, and the generated audio fixtures):
 npm test
 
-# Unit tests (Rust DSP core — no webview deps needed):
+# Tests (Rust DSP core — no webview deps needed):
 cargo test -p audio-core
 
 # Production build / installers:
 npm run tauri build
 ```
+
+### Test audio
+
+Both suites run against a **generated learning-track set** rather than copyrighted
+tracks. The song is a real barbershop arrangement in B♭ written to the style rules in
+the Barbershop Harmony Society's [Music Educator
+Guide](https://files.barbershop.org/PDFs/Education/Music-Educator-Guide-and-Songbook_v3.5.pdf):
+barbershop sevenths resolving around the circle of fifths (`Bb → G7 → C7 → F7 → Bb`,
+plus a tag onto a held post), justly tuned so the chords ring (4:5:6:7), melody in the
+lead with the tenor above it, the guide's balance and voice ranges, swipes and a word
+echo — and rests a quartet would actually sing: breaths, trio bars, and the harmony
+sustaining under the melody's breath.
+
+It is written to disk as real media (part-left and part-right WAVs, tagged FLACs,
+optional MP3s, mono reference stems, and a deliberately **misaligned** copy shaped like
+a publisher's — spoken title, pitch pipe, gap, song pasted in late) and put through the
+whole pipeline: decode → extract the isolated voice → align → mix → time-stretch →
+encode → read tags back. The tests also check the *music*: the voicing, the tuning, the
+chord vocabulary and the balance.
+
+`cargo test -p audio-core` and `npm test` generate it on demand; to refresh it or to
+load it into the app by hand for UI testing:
+
+```bash
+cargo run -p audio-core --example generate_fixtures     # -> samples/fixtures/
+```
+
+The arrangement lives in `crates/audio-core/tests/support/score.rs`; see
+[`samples/README.md`](samples/README.md) for the layout. (`npm test` shells out to
+the generator, so without a Rust toolchain the fixture-backed frontend tests skip.)
 
 ## Licensing
 

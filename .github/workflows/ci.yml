@@ -19,8 +19,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # The audio-backed tests decode generated learning tracks; the generator is
+      # the same Rust example the DSP tests use (no webkit/gtk needed).
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: npm ci
       - run: npm run check
+      - name: Generate audio fixtures
+        run: cargo run -q -p audio-core --example generate_fixtures
       - run: npm test
 
   rust-core:

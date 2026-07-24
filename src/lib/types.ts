@@ -16,6 +16,28 @@ export interface SourceTrack {
   channel: Channel;
 }
 
+/**
+ * How one part's stem is shifted so the set plays together.
+ *
+ * The edit is a splice: cut `-deltaFrames` frames at `spliceAt` (or insert that
+ * many frames of silence when positive). It's placed in the silent gap of the
+ * lead-in, so the spoken title and pitch pipe stay aligned with the other parts.
+ */
+export interface Alignment {
+  /** How much later this part's song started than the earliest one, in frames. */
+  offsetFrames: number;
+  spliceAt: number;
+  deltaFrames: number;
+  /** Correlation behind the measurement, 0..1. */
+  confidence: number;
+  /** Whether the offset held steady through the song. */
+  consistent: boolean;
+  /** How much the measurement varied between windows, in frames. */
+  spreadFrames: number;
+  /** Sample rate the frame counts are in (the source file's, not the mixer's). */
+  sampleRate: number;
+}
+
 /** Per-part mixer settings. */
 export interface PartMix {
   /** Audible in the output. `false` = muted (the single per-part on/off). */
