@@ -144,14 +144,89 @@ fn encode_flac(
     Ok(sink.as_slice().to_vec())
 }
 
+/// Headroom (linear gain) to try, in order, when an MP3 encode fails. A
+/// full-scale, energetic passage can drive Shine's fixed-point MDCT to
+/// `i32::MIN`, where its `.abs()` overflows — a panic in a checked build, a
+/// wrapped (mis-quantized) coefficient otherwise. Pulling the input down keeps
+/// the transform off that edge.
+///
+/// The ladder starts imperceptibly gentle: real music encodes at full scale or
+/// clears within ~0.5 dB (a hard-panned quartet mix that peaked at 0 dBFS needed
+/// -0.2 dB). The deeper steps only ever apply to near-pure-tone material a
+/// listener would never mistake for a normal recording, and exist so *something*
+/// usable always comes out rather than a hard failure.
+#[cfg(feature = "mp3")]
+const MP3_HEADROOM_STEPS: [f32; 6] = [
+    1.0, 0.977, // -0.2 dB
+    0.944, // -0.5 dB
+    0.891, // -1 dB
+    0.794, // -2 dB
+    0.707, // -3 dB
+];
+
 #[cfg(feature = "mp3")]
 fn encode_mp3(samples: &[f32], channels: u16, sample_rate: u32) -> Result<Vec<u8>, EncodeError> {
+    // Shine's overflow is expected and handled below, so keep its panic message
+    // out of the console — otherwise a successful (retried) export looks like a
+    // crash. Restored when this returns. Encodes don't overlap in this app, so
+    // swapping the process-global hook here is safe.
+    let _silence = SilencedPanics::new();
+
+    let mut last: Option<String> = None;
+    for headroom in MP3_HEADROOM_STEPS {
+        match encode_mp3_at(samples, channels, sample_rate, headroom) {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(EncodeError::Mp3(format!(
+        "shine encoder failed even with headroom ({})",
+        last.unwrap_or_else(|| "unknown".into())
+    )))
+}
+
+#[cfg(feature = "mp3")]
+type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+/// Suppresses the default panic hook for its lifetime, restoring it on drop, so
+/// a caught-and-retried Shine overflow doesn't spam the console.
+#[cfg(feature = "mp3")]
+struct SilencedPanics(Option<PanicHook>);
+
+#[cfg(feature = "mp3")]
+impl SilencedPanics {
+    fn new() -> Self {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        SilencedPanics(Some(previous))
+    }
+}
+
+#[cfg(feature = "mp3")]
+impl Drop for SilencedPanics {
+    fn drop(&mut self) {
+        if let Some(previous) = self.0.take() {
+            std::panic::set_hook(previous);
+        }
+    }
+}
+
+/// One MP3 encode attempt at the given headroom. Shine is pure Rust and each
+/// call builds a fresh encoder, so catching a panic here leaves nothing in a bad
+/// state — we can simply try again with more headroom.
+#[cfg(feature = "mp3")]
+fn encode_mp3_at(
+    samples: &[f32],
+    channels: u16,
+    sample_rate: u32,
+    headroom: f32,
+) -> Result<Vec<u8>, String> {
     use shine_rs::{encode_pcm_to_mp3, Mp3EncoderConfig, StereoMode};
 
     // Shine expects interleaved i16 PCM.
     let pcm: Vec<i16> = samples
         .iter()
-        .map(|&s| (s.clamp(-1.0, 1.0) * 32767.0).round() as i16)
+        .map(|&s| ((s * headroom).clamp(-1.0, 1.0) * 32767.0).round() as i16)
         .collect();
 
     let config = Mp3EncoderConfig {
@@ -167,7 +242,10 @@ fn encode_mp3(samples: &[f32], channels: u16, sample_rate: u32) -> Result<Vec<u8
         original: true,
     };
 
-    encode_pcm_to_mp3(config, &pcm).map_err(|e| EncodeError::Mp3(format!("{e:?}")))
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        encode_pcm_to_mp3(config, &pcm).map_err(|e| format!("{e:?}"))
+    }))
+    .unwrap_or_else(|_| Err("panicked (fixed-point overflow)".into()))
 }
 
 #[cfg(test)]
@@ -221,6 +299,28 @@ mod tests {
             .expect("mp3 encode");
         assert!(!bytes.is_empty());
         // MP3 stream begins with an ID3 tag ("ID3") or an MPEG frame sync (0xFF 0xEx).
+        let starts_with_id3 = bytes.starts_with(b"ID3");
+        let starts_with_sync = bytes.len() >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0;
+        assert!(starts_with_id3 || starts_with_sync, "not an MP3 stream");
+    }
+
+    #[cfg(feature = "mp3")]
+    #[test]
+    fn mp3_survives_a_full_scale_signal() {
+        // A sustained full-scale tone drives Shine's fixed-point MDCT to
+        // `i32::MIN`, where its `.abs()` overflows — this used to crash the app
+        // (checked build) or silently corrupt a coefficient (release). The
+        // encoder now backs the level off until it clears, so a hot export still
+        // produces a valid MP3 instead of failing. (A hard-panned quartet mix
+        // that peaked at 0 dBFS was the real-world trigger.)
+        let sr = 44_100;
+        let sine: Vec<f32> = (0..sr * 2)
+            .map(|i| (2.0 * std::f32::consts::PI * 220.0 * i as f32 / sr as f32).sin())
+            .collect();
+
+        let bytes = encode_interleaved(&sine, 1, sr, ExportFormat::Mp3, BitDepth::Sixteen)
+            .expect("full-scale signal should still encode");
+        assert!(!bytes.is_empty());
         let starts_with_id3 = bytes.starts_with(b"ID3");
         let starts_with_sync = bytes.len() >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0;
         assert!(starts_with_id3 || starts_with_sync, "not an MP3 stream");
