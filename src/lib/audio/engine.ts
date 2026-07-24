@@ -1,6 +1,7 @@
-import { PARTS, type Part } from "../types";
+import { PARTS, type Alignment, type Part } from "../types";
 import { effectiveGain, type MixerState } from "../mixer/store";
 import { stretchStem } from "./stretchNative";
+import { applyAlignment } from "./align";
 
 /**
  * Live preview engine (Web Audio).
@@ -20,7 +21,11 @@ export class MixEngine {
   private readonly mixBus: GainNode;
   private readonly partGain = new Map<Part, GainNode>();
   private readonly partPan = new Map<Part, StereoPannerNode>();
+  /** Stems as decoded, before any timing correction. */
+  private readonly rawBuffers = new Map<Part, AudioBuffer>();
+  /** Stems with the timing correction applied — what everything else reads. */
   private readonly buffers = new Map<Part, AudioBuffer>();
+  private readonly alignment = new Map<Part, Alignment>();
 
   /** Buffers actually played (stretched, or the originals when at natural speed). */
   private playbackBuffers = new Map<Part, AudioBuffer>();
@@ -61,8 +66,43 @@ export class MixEngine {
   }
 
   setBuffer(part: Part, buffer: AudioBuffer): void {
-    this.buffers.set(part, buffer);
+    this.rawBuffers.set(part, buffer);
+    this.buffers.set(part, applyAlignment(this.ctx, buffer, this.alignment.get(part)));
     this.preparedTempo = null; // playback buffers are now stale
+  }
+
+  /**
+   * Apply (or clear, with `undefined`) a part's timing correction. The stem is
+   * re-spliced from the decoded original, so nudging never compounds.
+   */
+  setAlignment(part: Part, alignment: Alignment | undefined): void {
+    if (this.updateAlignment(part, alignment) && this.suspendForChange()) {
+      void this.play();
+    }
+  }
+
+  /**
+   * Re-splice one stem for a new correction. Returns whether anything changed —
+   * the caller decides when to restart playback, because a restart has to happen
+   * *after* every stem has been updated (see {@link applyMix}).
+   */
+  private updateAlignment(part: Part, alignment: Alignment | undefined): boolean {
+    const previous = this.alignment.get(part);
+    if (
+      (previous?.deltaFrames ?? 0) === (alignment?.deltaFrames ?? 0) &&
+      (previous?.spliceAt ?? 0) === (alignment?.spliceAt ?? 0)
+    ) {
+      return false;
+    }
+    if (alignment) this.alignment.set(part, alignment);
+    else this.alignment.delete(part);
+
+    const raw = this.rawBuffers.get(part);
+    if (!raw) return false; // applied when the stem finishes decoding
+
+    this.buffers.set(part, applyAlignment(this.ctx, raw, alignment));
+    this.preparedTempo = null; // playback buffers are now stale
+    return true;
   }
 
   hasBuffer(part: Part): boolean {
@@ -90,6 +130,16 @@ export class MixEngine {
   }
 
   applyMix(state: MixerState): void {
+    // Re-splice every changed stem *before* restarting playback. Restarting
+    // per part would take the buffers as they are at that moment, so the parts
+    // corrected later in the loop would carry on playing their old audio until
+    // something else happened to restart it.
+    let realigned = false;
+    for (const part of PARTS) {
+      realigned = this.updateAlignment(part, state.alignment[part]) || realigned;
+    }
+    if (realigned && this.suspendForChange()) void this.play();
+
     const now = this.ctx.currentTime;
     for (const part of PARTS) {
       this.partGain.get(part)!.gain.setTargetAtTime(effectiveGain(state, part), now, 0.01);
@@ -100,14 +150,21 @@ export class MixEngine {
     this.setTempo(state.tempo);
   }
 
+  /**
+   * Stop the running sources but keep the playhead, so a change can be made and
+   * playback picked up where it left off. Returns whether it was playing.
+   */
+  private suspendForChange(): boolean {
+    if (!this.playing) return false;
+    this.pausedAt = this.position();
+    this.stopActive();
+    this.playing = false;
+    cancelAnimationFrame(this.rafId);
+    return true;
+  }
+
   private restartIfPlaying(mutate: () => void): void {
-    const wasPlaying = this.playing;
-    if (wasPlaying) {
-      this.pausedAt = this.position();
-      this.stopActive();
-      this.playing = false;
-      cancelAnimationFrame(this.rafId);
-    }
+    const wasPlaying = this.suspendForChange();
     mutate();
     if (wasPlaying) void this.play();
   }
@@ -181,9 +238,15 @@ export class MixEngine {
     this.pausedAt = offset;
     const when = this.ctx.currentTime + 0.03;
 
+    // At natural speed the stems are played as they stand, so a correction that
+    // lands between here and `ensurePlayback` can't be missed. Only the stretched
+    // path uses pre-built buffers — and any change invalidates those (see
+    // `updateAlignment`), forcing a re-stretch.
+    const playing = this.needsStretch ? this.playbackBuffers : this.buffers;
+
     this.sources.clear();
     for (const part of PARTS) {
-      const buffer = this.playbackBuffers.get(part);
+      const buffer = playing.get(part);
       if (!buffer) continue;
       const src = this.ctx.createBufferSource();
       src.buffer = buffer;
@@ -205,6 +268,16 @@ export class MixEngine {
     this.stopActive();
     this.playing = false;
     cancelAnimationFrame(this.rafId);
+  }
+
+  /**
+   * Stop and send the playhead back to the start — what a freshly loaded set
+   * wants, rather than dropping you two minutes into a song you just opened.
+   */
+  rewind(): void {
+    this.pause();
+    this.pausedAt = 0;
+    this.onPosition?.(0, this.duration);
   }
 
   seek(seconds: number): void {

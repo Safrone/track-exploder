@@ -44,6 +44,10 @@
     show = true;
   }
 
+  // Part files in a set are often pasted in at slightly different spots; line
+  // each song up before mixing rather than baking the skew into every export.
+  let align = $state(true);
+
   async function chooseFolder() {
     const d = await open({ directory: true, title: "Choose output folder" });
     if (d) outputDir = Array.isArray(d) ? d[0] : d;
@@ -55,7 +59,7 @@
     prog = null;
     result = await bulkExport(
       groups,
-      { ctx: getEngine().ctx, state: snapshot(), format, bitDepth, outputDir },
+      { ctx: getEngine().ctx, state: snapshot(), format, bitDepth, outputDir, align },
       (info) => {
         prog = { index: info.index, total: info.total, name: info.group.name, stage: info.stage };
       },
@@ -122,6 +126,12 @@
             {ungrouped.length} file(s) had no recognizable part name and were ignored.
           </p>
         {/if}
+
+        <label class="alignopt">
+          <input type="checkbox" bind:checked={align} />
+          Line up each song's part tracks before mixing
+          <span class="hint">(measures the files; adds a few seconds per song)</span>
+        </label>
 
         <div class="folder">
           <button class="secondary" onclick={chooseFolder}>Choose output folder…</button>
@@ -269,6 +279,17 @@
   }
   .skip {
     color: #fca5a5;
+    font-size: 0.78rem;
+  }
+  .alignopt {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: var(--text);
+  }
+  .alignopt .hint {
+    color: var(--text-dim);
     font-size: 0.78rem;
   }
   .folder {

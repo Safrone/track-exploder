@@ -60,6 +60,26 @@ export async function invokeContentName(uri: string): Promise<string | null> {
   return (await invoke("content_name", { uri })) as string | null;
 }
 
+export interface AlignmentResult {
+  offsetFrames: number;
+  spliceAt: number;
+  deltaFrames: number;
+  confidence: number;
+  consistent: boolean;
+  spreadFrames: number;
+  sampleRate: number;
+}
+
+/**
+ * Measure how far apart a set's part tracks play. Rust reads and decodes the
+ * files itself — only the small result crosses IPC.
+ */
+export async function invokeAnalyzeAlignment(
+  files: { path: string; ext?: string }[],
+): Promise<AlignmentResult[]> {
+  return (await invoke("analyze_alignment", { files })) as AlignmentResult[];
+}
+
 /** Read a normalized set of tags (album, artist, title, …) from a file path/URI. */
 export async function invokeReadTags(
   path: string,

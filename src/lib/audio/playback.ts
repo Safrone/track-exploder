@@ -32,3 +32,13 @@ export function getEngine(): MixEngine {
 export function currentEngine(): MixEngine | null {
   return engine;
 }
+
+/**
+ * Stop the preview and return to the start of the song. Called when a new set is
+ * loaded, so the playhead doesn't carry over from whatever was playing before.
+ */
+export function rewindPlayback(): void {
+  position.set(0);
+  isPlaying.set(false);
+  engine?.rewind();
+}

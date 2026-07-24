@@ -8,6 +8,7 @@
 //! * [`decode_stem`] — decode file bytes, return one isolated channel as PCM.
 //! * [`encode_mix`] — stretch (if slowed) + encode a rendered mix, return bytes.
 //! * [`stretch_stem`] — pitch-preserving time-stretch of one mono stem.
+//! * [`analyze_alignment`] — measure how far apart a set's part tracks play.
 //! * [`read_tags`] — read tags from file bytes.
 //! * [`embed_tags`] — embed tags into an already-written file (desktop paths only).
 
@@ -153,6 +154,90 @@ async fn stretch_stem(
     .await
     .map_err(|e| format!("stretch task failed: {e}"))?;
     Ok(pcm_response(sr, out))
+}
+
+/// One source file to include in an alignment analysis.
+#[derive(serde::Deserialize)]
+struct AlignInput {
+    path: String,
+    ext: Option<String>,
+}
+
+/// What to do to one file to line it up with the rest of the set.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AlignOutput {
+    /// How much later this file's song starts than the earliest one, in frames.
+    offset_frames: i64,
+    /// Where to apply the edit, and how much silence to cut (negative) or add.
+    splice_at: usize,
+    delta_frames: i64,
+    confidence: f32,
+    consistent: bool,
+    spread_frames: i64,
+    sample_rate: u32,
+}
+
+/// Measure how far apart a song's part tracks play, and how to fix each one.
+///
+/// Publishers paste the song after the spoken title and pitch pipe, and don't
+/// always paste it in at the same spot, so the parts can play tens or hundreds
+/// of milliseconds apart. Both channels of each file are summed (the isolated
+/// part plus the other three is the whole performance) and compared; the result
+/// is the edit each stem needs, to be applied where the lead-in is silent so the
+/// spoken intro stays in line.
+#[tauri::command]
+async fn analyze_alignment(
+    app: tauri::AppHandle,
+    files: Vec<AlignInput>,
+) -> Result<Vec<AlignOutput>, String> {
+    // Decode one file at a time and keep only the mono sum — a full set of
+    // decoded stereo stems would be several hundred megabytes.
+    let mut monos: Vec<Vec<f32>> = Vec::with_capacity(files.len());
+    let mut sample_rate = 0u32;
+    for file in files {
+        let bytes = read_file_bytes(&app, &file.path)?;
+        let decoded =
+            tauri::async_runtime::spawn_blocking(move || decode_bytes(bytes, file.ext.as_deref()))
+                .await
+                .map_err(|e| format!("decode task failed: {e}"))?
+                .map_err(|e| e.to_string())?;
+        if sample_rate == 0 {
+            sample_rate = decoded.sample_rate;
+        } else if decoded.sample_rate != sample_rate {
+            return Err("the part files have different sample rates".into());
+        }
+        let mut mono = vec![0.0f32; decoded.frames];
+        for channel in &decoded.planar {
+            for (m, s) in mono.iter_mut().zip(channel) {
+                *m += *s;
+            }
+        }
+        monos.push(mono);
+    }
+    if monos.len() < 2 {
+        return Err("alignment needs at least two files".into());
+    }
+
+    let corrections = tauri::async_runtime::spawn_blocking(move || {
+        let refs: Vec<&[f32]> = monos.iter().map(|m| m.as_slice()).collect();
+        audio_core::align_set(&refs, sample_rate)
+    })
+    .await
+    .map_err(|e| format!("alignment task failed: {e}"))?;
+
+    Ok(corrections
+        .into_iter()
+        .map(|c| AlignOutput {
+            offset_frames: c.offset_frames,
+            splice_at: c.splice_at,
+            delta_frames: c.delta_frames,
+            confidence: c.confidence,
+            consistent: c.consistent,
+            spread_frames: c.spread_frames,
+            sample_rate,
+        })
+        .collect())
 }
 
 /// Read a normalized set of tags from the file at `path` (or content:// URI).
@@ -304,6 +389,7 @@ pub fn run() {
             decode_stem,
             encode_mix,
             stretch_stem,
+            analyze_alignment,
             read_tags,
             content_name,
             embed_tags

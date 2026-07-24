@@ -1,7 +1,14 @@
 <script lang="ts">
   import { PARTS, type Channel, type Part } from "./lib/types";
-  import { mixer, allLoaded, snapshot, patchState } from "./lib/mixer/store";
-  import { getEngine, currentEngine } from "./lib/audio/playback";
+  import {
+    mixer,
+    allLoaded,
+    snapshot,
+    patchState,
+    setAlignment,
+    clearAlignment,
+  } from "./lib/mixer/store";
+  import { getEngine, currentEngine, rewindPlayback } from "./lib/audio/playback";
   import {
     pickAndLoad,
     pickOneAudioFile,
@@ -10,7 +17,8 @@
     displayName,
     basename,
   } from "./lib/audio/load";
-  import { mixEnvelope, type StereoEnvelope } from "./lib/audio/waveform";
+  import { analyzeAlignment, shiftMs } from "./lib/audio/align";
+  import { partLanes, type PartLane } from "./lib/audio/waveform";
   import { isTauri } from "./lib/audio/tauri";
   import { readAudioTags } from "./lib/audio/decode";
   import { clearTags, setPartTags } from "./lib/mixer/tags";
@@ -29,23 +37,23 @@
   const WAVE_BUCKETS = 1000;
 
   let loading = $state(false);
+  let aligning = $state(false);
   let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
   let showAbout = $state(false);
-  let envelope = $state<StereoEnvelope | null>(null);
+  let lanes = $state<PartLane[]>([]);
   const tauri = isTauri();
 
   const hasTracks = $derived(PARTS.some((p) => !!$mixer.tracks[p]));
+  const shifted = $derived(PARTS.filter((p) => $mixer.alignment[p]?.deltaFrames));
 
-  // Push mixer changes into the engine and regenerate the stereo waveform
+  // Push mixer changes into the engine and rebuild the per-part waveform lanes
   // whenever the mix or the loaded stems change.
   $effect(() => {
     const state = $mixer;
     const engine = currentEngine();
     if (!engine) return;
     engine.applyMix(state);
-    envelope = PARTS.some((p) => engine.hasBuffer(p))
-      ? mixEnvelope(engine, state, WAVE_BUCKETS)
-      : null;
+    lanes = partLanes(engine, state, WAVE_BUCKETS);
   });
 
   // Explicit per-part load — pick one file and assign it to `part`. Works on
@@ -63,6 +71,7 @@
       const name = await displayName(path);
       await loadPart(getEngine(), part, path, snapshot().sourceChannel, name);
       currentEngine()?.applyMix(snapshot());
+      rewindPlayback(); // the stem changed under the playhead
       try {
         setPartTags(part, await readAudioTags(path));
       } catch {
@@ -83,6 +92,7 @@
     }
     loading = true;
     clearTags();
+    clearAlignment(); // offsets belong to the set being replaced
     try {
       const report = await pickAndLoad(
         getEngine(),
@@ -108,10 +118,15 @@
       );
 
       if (report.loaded.length > 0) {
+        rewindPlayback(); // start the new song from the top
         toast(`Loaded: ${report.loaded.join(", ")}`, "success");
         if (report.unassigned.length) {
           toast(`Couldn't match: ${report.unassigned.map(basename).join(", ")}`, "info");
         }
+        // Publishers' part files are often a few milliseconds (sometimes much
+        // more) out of step with each other; check as soon as they're loaded and
+        // only speak up when there's something to fix.
+        if (report.loaded.length > 1) void autoAlign(false);
       } else {
         toast("No parts matched. Name files with tenor/lead/bari/bass.", "error");
       }
@@ -121,6 +136,58 @@
       loading = false;
       loadProgress = null;
     }
+  }
+
+  /**
+   * Measure how far apart the loaded parts play and line them up.
+   *
+   * Publishers paste the song in after the spoken title and pitch pipe, and not
+   * always at the same spot, so parts can be tens (occasionally hundreds) of
+   * milliseconds out. The correction lands in the silent lead-in gap, which keeps
+   * the spoken intro aligned; every part strip shows its shift and can be nudged.
+   */
+  async function autoAlign(announceWhenAligned = true) {
+    const tracks = snapshot().tracks;
+    if (PARTS.filter((p) => tracks[p]).length < 2) return;
+
+    aligning = true;
+    try {
+      const report = await analyzeAlignment(tracks);
+      const moved: string[] = [];
+      for (const part of PARTS) {
+        const alignment = report.alignment[part];
+        if (!alignment) continue;
+        setAlignment(part, alignment.deltaFrames ? alignment : undefined);
+        const ms = shiftMs(alignment);
+        if (ms !== 0) moved.push(`${part} ${ms > 0 ? "+" : "−"}${Math.abs(ms).toFixed(0)} ms`);
+      }
+      currentEngine()?.applyMix(snapshot());
+
+      if (moved.length) {
+        toast(`Aligned: ${moved.join(", ")}`, "success");
+        if (report.unsteady.length) {
+          toast(
+            `${report.unsteady.join(", ")} drift through the song — nudge to taste.`,
+            "info",
+          );
+        }
+      } else if (announceWhenAligned) {
+        toast("Parts are already in sync.", "info");
+      }
+      if (report.unmeasured.length) {
+        toast(`Couldn't measure: ${report.unmeasured.join(", ")}`, "info");
+      }
+    } catch (err) {
+      toast(`Alignment failed: ${err}`, "error");
+    } finally {
+      aligning = false;
+    }
+  }
+
+  function resetAlignment() {
+    clearAlignment();
+    currentEngine()?.applyMix(snapshot());
+    toast("Parts play exactly as recorded.", "info");
   }
 
   async function setSourceChannel(channel: Channel) {
@@ -198,6 +265,26 @@
       </div>
       <span class="hint">All files in a learning-track set share the same side.</span>
     </div>
+
+    <div class="sourcechan">
+      <span class="lbl">Track timing:</span>
+      <button class="alignbtn" disabled={aligning || loading} onclick={() => autoAlign()}>
+        {aligning ? "Measuring…" : "Auto-align"}
+      </button>
+      <button
+        class="alignbtn"
+        disabled={aligning || loading || shifted.length === 0}
+        onclick={resetAlignment}>Reset</button
+      >
+      <span class="hint">
+        {#if shifted.length}
+          Shifted: {shifted.join(", ")} — the correction sits in the silent gap after
+          the pitch pipe, so the spoken intro stays in line.
+        {:else}
+          Part files aren't always pasted in at the same spot; this lines them up.
+        {/if}
+      </span>
+    </div>
   {/if}
 
   <div class="mixhead">
@@ -214,9 +301,9 @@
     {/each}
   </section>
 
-  {#if $allLoaded || envelope}
+  {#if $allLoaded || lanes.length > 0}
     <section class="stack">
-      <Waveform {envelope} onSeek={(s) => currentEngine()?.seek(s)} />
+      <Waveform {lanes} onSeek={(s) => currentEngine()?.seek(s)} />
       <Transport />
       <div class="panel">
         <h2>Presets</h2>
@@ -348,6 +435,23 @@
   .sourcechan .hint {
     color: var(--text-dim);
     font-size: 0.78rem;
+  }
+  .alignbtn {
+    padding: 0.3rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .alignbtn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .alignbtn:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .seg {
     display: inline-flex;

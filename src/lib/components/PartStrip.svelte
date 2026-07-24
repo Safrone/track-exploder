@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { Part } from "../types";
-  import { mixer, setPartMix } from "../mixer/store";
+  import { mixer, setPartMix, setAlignment } from "../mixer/store";
   import { resetOnDblClick } from "../actions";
+  import { currentEngine } from "../audio/playback";
+  import { noAlignment, nudge, shiftMs } from "../audio/align";
 
   interface Props {
     part: Part;
@@ -13,6 +15,21 @@
   const m = $derived($mixer.mix[part]);
   // Thumb position 0..100 for the pan fill (which grows from the centre out).
   const panPct = $derived(((m.pan + 1) / 2) * 100);
+
+  const alignment = $derived($mixer.alignment[part]);
+  const shift = $derived(shiftMs(alignment));
+  const timing = $derived(
+    shift === 0
+      ? "as recorded"
+      : `${shift > 0 ? "+" : "−"}${Math.abs(shift).toFixed(shift % 1 ? 1 : 0)} ms`,
+  );
+
+  /** Move this part earlier (negative) or later, in milliseconds. */
+  function nudgeBy(ms: number) {
+    const sampleRate =
+      alignment?.sampleRate || currentEngine()?.getBuffer(part)?.sampleRate || 44100;
+    setAlignment(part, nudge(alignment ?? noAlignment(sampleRate), ms));
+  }
 </script>
 
 <div class="strip" class:loaded={!!track} class:muted={!!track && !m.included}>
@@ -72,6 +89,33 @@
       oninput={(e) => setPartMix(part, { pan: +e.currentTarget.value })}
     />
   </label>
+
+  {#if track}
+    <div class="timing" class:shifted={shift !== 0}>
+      <span class="lbl" title="Timing relative to the rest of the set">
+        Timing {timing}
+        {#if alignment && !alignment.consistent && alignment.deltaFrames !== 0}
+          <span
+            class="warn"
+            title="The offset drifts through the song, so one shift can only get close."
+            >±{Math.round((alignment.spreadFrames / alignment.sampleRate) * 1000)} ms</span
+          >
+        {/if}
+      </span>
+      <div class="nudge">
+        <button title="10 ms earlier" onclick={() => nudgeBy(-10)}>−10</button>
+        <button title="1 ms earlier" onclick={() => nudgeBy(-1)}>−1</button>
+        <button title="1 ms later" onclick={() => nudgeBy(1)}>+1</button>
+        <button title="10 ms later" onclick={() => nudgeBy(10)}>+10</button>
+        <button
+          class="reset"
+          disabled={shift === 0}
+          title="Play this part exactly as recorded"
+          onclick={() => setAlignment(part, undefined)}>⟲</button
+        >
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -160,6 +204,48 @@
     gap: 0.2rem;
     font-size: 0.75rem;
     color: var(--text-dim);
+  }
+  .timing {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    padding-top: 0.4rem;
+  }
+  .timing.shifted .lbl {
+    color: var(--accent);
+  }
+  .timing .warn {
+    color: #fbbf24;
+    margin-left: 0.3rem;
+  }
+  .nudge {
+    display: flex;
+    gap: 0.2rem;
+  }
+  .nudge button {
+    flex: 1;
+    padding: 0.15rem 0;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .nudge button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .nudge button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .nudge .reset {
+    flex: 0 0 1.6rem;
   }
   .slider input {
     width: 100%;

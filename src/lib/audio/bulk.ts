@@ -2,6 +2,7 @@ import { PARTS, type ExportFormat, type Part } from "../types";
 import { guessPart, basename } from "./load";
 import { decodeStem, readAudioTags } from "./decode";
 import { renderMix, type RenderSource } from "./export";
+import { analyzeAlignment, applyAlignment } from "./align";
 import { invokeEncodeMix, invokeEmbedTags } from "./tauri";
 import { writeBytes, isRealPath } from "./files";
 import { commonSongBase, suggestBaseNameFor } from "../mixer/naming";
@@ -82,7 +83,7 @@ export function groupFiles(paths: string[]): Grouping {
   return { groups, ungrouped };
 }
 
-export type BulkStage = "decoding" | "rendering" | "encoding" | "done" | "error";
+export type BulkStage = "decoding" | "aligning" | "rendering" | "encoding" | "done" | "error";
 export type BulkProgress = (
   info: { index: number; total: number; group: SongGroup; stage: BulkStage; error?: string },
 ) => void;
@@ -93,6 +94,12 @@ export interface BulkOptions {
   format: ExportFormat;
   bitDepth: number;
   outputDir: string;
+  /**
+   * Measure each song's part files and line them up before mixing (default on).
+   * Publishers don't always paste the song in at the same spot in all four
+   * files, and a bulk run would otherwise bake that skew into every export.
+   */
+  align?: boolean;
 }
 
 const EXT: Record<ExportFormat, string> = { wav: "wav", flac: "flac", mp3: "mp3" };
@@ -124,6 +131,28 @@ export async function bulkExport(
           tagMap[part] = await readAudioTags(path);
         } catch {
           /* tags best-effort */
+        }
+      }
+
+      if (opts.align !== false) {
+        onProgress?.({ index, total, group, stage: "aligning" });
+        const tracks = Object.fromEntries(
+          PARTS.map((part) => [
+            part,
+            {
+              part,
+              path: group.parts[part]!,
+              name: basename(group.parts[part]!),
+              channel: opts.state.sourceChannel,
+            },
+          ]),
+        );
+        const report = await analyzeAlignment(tracks);
+        for (const part of PARTS) {
+          const alignment = report.alignment[part];
+          if (alignment?.deltaFrames) {
+            stems.set(part, applyAlignment(opts.ctx, stems.get(part)!, alignment));
+          }
         }
       }
 

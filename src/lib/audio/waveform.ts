@@ -1,6 +1,10 @@
-import { PARTS } from "../types";
-import { effectiveGain, type MixerState } from "../mixer/store";
-import type { MixEngine } from "./engine";
+import { PARTS, type Part } from "../types";
+import type { MixerState } from "../mixer/store";
+
+/** Anything holding the loaded stems (the preview engine, in practice). */
+export interface StemSource {
+  getBuffer(part: Part): AudioBuffer | undefined;
+}
 
 /** Per-stem peak envelope, cached by AudioBuffer identity + bucket count. */
 const cache = new WeakMap<AudioBuffer, { buckets: number; env: Float32Array }>();
@@ -27,43 +31,56 @@ export function stemPeaks(buffer: AudioBuffer, buckets: number): Float32Array {
   return env;
 }
 
-export interface StereoEnvelope {
-  l: Float32Array;
-  r: Float32Array;
+/** One voice's lane in the waveform view. */
+export interface PartLane {
+  part: Part;
+  /** Peak envelope of the stem as recorded, before gain and pan. */
+  peaks: Float32Array;
+  /** The loudest of those peaks — the lane's own reference for fitting the box. */
+  peak: number;
+  /** Level going to the left channel — drawn upward (gain × pan). */
+  left: number;
+  /** …and to the right — drawn downward. */
+  right: number;
+  /** True when the part won't be heard: muted, or turned all the way down. */
+  silent: boolean;
+  /** Length of the stem in seconds (they differ once a part has been shifted). */
+  duration: number;
 }
 
 /**
- * Combine the loaded stems into a stereo peak envelope for the current mix.
- * Cheap enough to recompute on every gain/pan/mute change: it works from the
- * precomputed per-stem envelopes, not the raw samples.
+ * A lane per loaded voice, with its level split into what the left and right
+ * channels get.
  *
- * Uses the same equal-power pan law as `StereoPannerNode` so the picture
- * matches what you hear.
+ * The split uses the same equal-power pan law as `StereoPannerNode`, so a part
+ * panned hard left draws only upward, hard right only downward, and centred
+ * draws evenly either side — and gain scales the lane, so you can see the
+ * balance you've set as well as hear it.
+ *
+ * Each lane carries its own [`peak`](PartLane.peak) and the view scales against
+ * that, so turning one part up grows *that* lane and leaves the others exactly
+ * where they were. The master gain is left out for the same reason: it moves
+ * every part together and would only make the picture jump.
  */
-export function mixEnvelope(
-  engine: MixEngine,
-  state: MixerState,
-  buckets: number,
-): StereoEnvelope {
-  const l = new Float32Array(buckets);
-  const r = new Float32Array(buckets);
+export function partLanes(source: StemSource, state: MixerState, buckets: number): PartLane[] {
+  const lanes: PartLane[] = [];
 
   for (const part of PARTS) {
-    const buf = engine.getBuffer(part);
-    if (!buf) continue;
-    const gain = effectiveGain(state, part) * state.masterGain;
-    if (gain === 0) continue;
+    const buffer = source.getBuffer(part);
+    if (!buffer) continue;
 
-    const pan = state.mix[part].pan;
-    const x = ((pan + 1) * Math.PI) / 4; // -1..1 -> 0..π/2
-    const gl = Math.cos(x) * gain;
-    const gr = Math.sin(x) * gain;
-
-    const env = stemPeaks(buf, buckets);
-    for (let b = 0; b < buckets; b++) {
-      l[b] += env[b] * gl;
-      r[b] += env[b] * gr;
-    }
+    const mix = state.mix[part];
+    const angle = ((mix.pan + 1) * Math.PI) / 4; // -1..1 -> 0..π/2
+    const peaks = stemPeaks(buffer, buckets);
+    lanes.push({
+      part,
+      peaks,
+      peak: peaks.reduce((m, p) => Math.max(m, p), 0),
+      left: Math.cos(angle) * mix.gain,
+      right: Math.sin(angle) * mix.gain,
+      silent: !mix.included || mix.gain === 0,
+      duration: buffer.duration,
+    });
   }
-  return { l, r };
+  return lanes;
 }
