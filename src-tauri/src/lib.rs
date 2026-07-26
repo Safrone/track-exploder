@@ -276,6 +276,123 @@ async fn content_name(_uri: String) -> Result<Option<String>, String> {
     }
 }
 
+/// Open a `content://` URI (or path) in the system's default viewer on Android.
+///
+/// The opener plugin's `open_path` can't handle a `content://` URI on Android
+/// (its `OpenArgs` fails to deserialize), so fire an `ACTION_VIEW` intent
+/// ourselves and grant the resolved app read access to the URI. Desktop keeps
+/// using the opener plugin; this command is Android-only.
+#[tauri::command]
+async fn open_uri(uri: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+        wry::prelude::dispatch(move |env, activity, _webview| {
+            let _ = tx.send(android_open_uri(env, activity, &uri));
+        });
+        tauri::async_runtime::spawn_blocking(move || {
+            rx.recv()
+                .unwrap_or_else(|e| Err(format!("open_uri channel closed: {e}")))
+        })
+        .await
+        .map_err(|e| format!("open_uri task failed: {e}"))?
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = uri;
+        Err("open_uri is Android-only".into())
+    }
+}
+
+/// Launch an `ACTION_VIEW` intent for `uri`, granting the resolved app read
+/// access. Runs on the UI thread (via `wry::prelude::dispatch`) with a live JNI
+/// env, mirroring [`android_display_name`].
+#[cfg(target_os = "android")]
+fn android_open_uri(
+    env: &mut jni::JNIEnv,
+    activity: &jni::objects::JObject,
+    uri: &str,
+) -> Result<(), String> {
+    use jni::objects::JObject;
+
+    let juri = env
+        .new_string(uri)
+        .map_err(|e| format!("new uri string: {e}"))?;
+    let uri_class = env
+        .find_class("android/net/Uri")
+        .map_err(|e| format!("find Uri: {e}"))?;
+    let uri_obj = env
+        .call_static_method(
+            uri_class,
+            "parse",
+            "(Ljava/lang/String;)Landroid/net/Uri;",
+            &[(&juri).into()],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| format!("Uri.parse: {e}"))?;
+
+    // MIME type from the resolver, falling back to */* so a viewer is still offered.
+    let resolver = env
+        .call_method(
+            activity,
+            "getContentResolver",
+            "()Landroid/content/ContentResolver;",
+            &[],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| format!("getContentResolver: {e}"))?;
+    let type_val = env
+        .call_method(
+            &resolver,
+            "getType",
+            "(Landroid/net/Uri;)Ljava/lang/String;",
+            &[(&uri_obj).into()],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| format!("getType: {e}"))?;
+    let mime: JObject = if type_val.is_null() {
+        env.new_string("*/*")
+            .map_err(|e| format!("fallback mime: {e}"))?
+            .into()
+    } else {
+        type_val
+    };
+
+    // Intent(ACTION_VIEW).setDataAndType(uri, mime), with read-grant + new-task flags.
+    let action = env
+        .new_string("android.intent.action.VIEW")
+        .map_err(|e| format!("action string: {e}"))?;
+    let intent_class = env
+        .find_class("android/content/Intent")
+        .map_err(|e| format!("find Intent: {e}"))?;
+    let intent = env
+        .new_object(&intent_class, "(Ljava/lang/String;)V", &[(&action).into()])
+        .map_err(|e| format!("new Intent: {e}"))?;
+    env.call_method(
+        &intent,
+        "setDataAndType",
+        "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;",
+        &[(&uri_obj).into(), (&mime).into()],
+    )
+    .map_err(|e| format!("setDataAndType: {e}"))?;
+    // FLAG_GRANT_READ_URI_PERMISSION (0x1) | FLAG_ACTIVITY_NEW_TASK (0x1000_0000)
+    env.call_method(
+        &intent,
+        "addFlags",
+        "(I)Landroid/content/Intent;",
+        &[0x1000_0001i32.into()],
+    )
+    .map_err(|e| format!("addFlags: {e}"))?;
+    env.call_method(
+        activity,
+        "startActivity",
+        "(Landroid/content/Intent;)V",
+        &[(&intent).into()],
+    )
+    .map_err(|e| format!("startActivity (no app to open this file?): {e}"))?;
+    Ok(())
+}
+
 /// Query the Android `ContentResolver` for a content URI's `DISPLAY_NAME`.
 /// Runs on the UI thread (via `wry::prelude::dispatch`) with a live JNI env.
 #[cfg(target_os = "android")]
@@ -392,6 +509,7 @@ pub fn run() {
             analyze_alignment,
             read_tags,
             content_name,
+            open_uri,
             embed_tags
         ])
         .run(tauri::generate_context!())

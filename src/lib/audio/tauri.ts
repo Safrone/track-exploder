@@ -80,6 +80,15 @@ export async function invokeAnalyzeAlignment(
   return (await invoke("analyze_alignment", { files })) as AlignmentResult[];
 }
 
+/**
+ * Open a `content://` URI (or path) in the system viewer on Android via a native
+ * ACTION_VIEW intent. Desktop uses the opener plugin instead — the plugin's
+ * `open_path` can't handle Android content URIs.
+ */
+export async function invokeOpenUri(uri: string): Promise<void> {
+  await invoke("open_uri", { uri });
+}
+
 /** Read a normalized set of tags (album, artist, title, …) from a file path/URI. */
 export async function invokeReadTags(
   path: string,

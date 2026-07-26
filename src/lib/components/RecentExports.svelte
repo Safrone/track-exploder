@@ -1,6 +1,7 @@
 <script lang="ts">
   import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
   import { exportsList, clearExports } from "../mixer/exports";
+  import { invokeOpenUri } from "../audio/tauri";
   import { isDesktop } from "../platform";
 
   const desktop = isDesktop();
@@ -9,7 +10,10 @@
 
   async function openFile(path: string) {
     try {
-      await openPath(path);
+      // The opener plugin can't open a content:// URI on Android, so hand it to
+      // a native view intent there; desktop uses the plugin.
+      if (desktop) await openPath(path);
+      else await invokeOpenUri(path);
     } catch (e) {
       err = `Could not open: ${e}`;
     }
