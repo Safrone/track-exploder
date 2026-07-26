@@ -71,7 +71,7 @@ Prebuilt installers are attached to each [release](../../releases).
 
 Prerequisites:
 
-- **Node.js** ≥ 20 and npm
+- **Node.js** ≥ 22 and npm
 - **Rust** (stable) — install via <https://rustup.rs>
 - **Tauri system dependencies** for your OS — see <https://v2.tauri.app/start/prerequisites/>.
   On Debian/Ubuntu: `libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev`.
