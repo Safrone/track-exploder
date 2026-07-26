@@ -72,7 +72,7 @@ jobs:
             | **macOS — Intel** | the `_x64.dmg` — unsigned; **right-click → Open** the first time |
             | **Linux — openSUSE / Fedora / RHEL** | the `.rpm` — GPG-signed (import `track-exploder-signing-key.asc` first) |
             | **Linux — Debian / Ubuntu** | the `_amd64.deb` |
-            | **Android** (arm64) | the `_android-arm64.apk` (debug-signed) |
+            | **Android** (arm64) | the `_android-arm64.apk` — sideload it; updates install over the previous version |
 
             The `*.app.tar.gz` files are auto-update artifacts — ignore them for a normal install.
 
@@ -154,9 +154,7 @@ jobs:
           sdkmanager "ndk;27.2.12479018"
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
       - run: npm ci
-      # Debug-signed so it installs without a keystore, and the signing key is
-      # stable across releases so users can upgrade over a previous install.
-      - name: Build Android APK (arm64, with MP3)
+      - name: Initialize Android project & apply app icons
         run: |
           npm run tauri android init
           # `android init` scaffolds Tauri's default launcher icon; overwrite the
@@ -164,7 +162,26 @@ jobs:
           dest=src-tauri/gen/android/app/src/main/res
           cp -rf src-tauri/icons/android/mipmap-* "$dest/"
           cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
-          npm run tauri android build -- --debug --apk --target aarch64 --features mp3
+      # A debug APK is signed with ~/.android/debug.keystore. Left to itself every
+      # CI run generates a fresh random key, so Android refuses to install a new
+      # release over an older one (signature mismatch) and you must uninstall
+      # first. Seeding one fixed keystore (kept as a repo secret) keeps the
+      # signature constant across releases, so updates install in place. If the
+      # secret is missing the build still works — it just falls back to an
+      # ephemeral key, as before.
+      - name: Use a stable debug signing key
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
+            mkdir -p "$HOME/.android"
+            echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+            echo "Using the stable debug keystore."
+          else
+            echo "::warning::ANDROID_DEBUG_KEYSTORE_BASE64 is not set — this APK gets an ephemeral signature and won't install as an update over a differently-signed build."
+          fi
+      - name: Build Android APK (arm64, with MP3)
+        run: npm run tauri android build -- --debug --apk --target aarch64 --features mp3
       - name: Attach APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
