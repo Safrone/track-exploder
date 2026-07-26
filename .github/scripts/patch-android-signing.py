@@ -17,19 +17,25 @@ import sys
 
 GRADLE = "src-tauri/gen/android/app/build.gradle.kts"
 
+# In a Gradle Kotlin script `java` resolves to the Gradle `java` extension, not
+# the JDK package, so `java.util.Properties` / `java.io.File` don't compile. Use
+# the imported `Properties` and Gradle's `rootProject.file(...)` instead. The
+# `!!` asserts non-null (getProperty is nullable; the signing setters aren't).
 SIGNING_CONFIG = """
     signingConfigs {
         create("release") {
-            val props = java.util.Properties()
+            val props = Properties()
             val f = rootProject.file("keystore.properties")
-            if (f.exists()) { f.inputStream().use { props.load(it) } }
-            keyAlias = props.getProperty("keyAlias")
-            keyPassword = props.getProperty("password")
-            storeFile = java.io.File(props.getProperty("storeFile"))
-            storePassword = props.getProperty("password")
+            if (f.exists()) f.inputStream().use { props.load(it) }
+            storeFile = rootProject.file(props.getProperty("storeFile")!!)
+            storePassword = props.getProperty("password")!!
+            keyAlias = props.getProperty("keyAlias")!!
+            keyPassword = props.getProperty("password")!!
         }
     }
 """
+
+PROPERTIES_IMPORT = "import java.util.Properties"
 
 
 def fail(msg: str) -> None:
@@ -39,6 +45,10 @@ def fail(msg: str) -> None:
 def main() -> None:
     with open(GRADLE) as fh:
         src = fh.read()
+
+    # `Properties` must be imported (the template does, but be robust).
+    if PROPERTIES_IMPORT not in src:
+        src = PROPERTIES_IMPORT + "\n" + src
 
     anchor = "\nandroid {"
     if anchor not in src:
