@@ -9,19 +9,26 @@ import { PARTS, defaultPartMix, type Part, type PartMix } from "../types";
 import type { MixerState } from "../mixer/store";
 import { interleave, renderMix, type RenderSource } from "./export";
 
-const SAMPLE_RATE = 48_000;
+/** The decoded stems' rate. Deliberately unlike the context rate (see below). */
+const FILE_RATE = 44_100;
+/** The (Android-style) context rate: different from the stems'. */
+const CONTEXT_RATE = 48_000;
 
 /** A source whose stems are flat DC tones, so a channel's value is just its gain. */
 function sourceOf(parts: Partial<Record<Part, number>>, length = 100): RenderSource {
   const buffers = Object.fromEntries(
     Object.entries(parts).map(([part, level]) => {
       const data = new Float32Array(length).fill(level!);
-      return [part, { length, duration: length / SAMPLE_RATE, getChannelData: () => data }];
+      return [
+        part,
+        { length, duration: length / FILE_RATE, sampleRate: FILE_RATE, getChannelData: () => data },
+      ];
     }),
-  ) as Record<Part, { length: number; duration: number; getChannelData: () => Float32Array }>;
+  ) as Record<Part, { length: number; duration: number; sampleRate: number; getChannelData: () => Float32Array }>;
   return {
-    ctx: { sampleRate: SAMPLE_RATE } as BaseAudioContext,
-    duration: length / SAMPLE_RATE,
+    // The context runs at a different rate than the stems, as Android's does.
+    ctx: { sampleRate: CONTEXT_RATE } as BaseAudioContext,
+    duration: length / FILE_RATE,
     getBuffer: (p) => buffers[p] as unknown as AudioBuffer,
   };
 }
@@ -102,6 +109,15 @@ describe("renderMix panning", () => {
     const { pcm } = await renderMix(sourceOf({ lead: 1 }), s, "stereo");
     expect(pcm[0]).toBeCloseTo(0.5, 5);
   });
+
+  it("labels the export with the stems' rate, not the context's", async () => {
+    // Android's WebView AudioContext runs at the device rate while the stems
+    // keep their decoded rate; mislabelling the export with the context rate
+    // shifts its pitch and corrupts the tempo stretch that runs on it.
+    const { sampleRate } = await renderMix(sourceOf({ lead: 1 }), state(), "stereo");
+    expect(sampleRate).toBe(FILE_RATE);
+    expect(sampleRate).not.toBe(CONTEXT_RATE);
+  });
 });
 
 describe("renderMix output modes", () => {
@@ -120,7 +136,12 @@ describe("renderMix output modes", () => {
     const base = src.getBuffer;
     src.getBuffer = (p) =>
       p === "bass"
-        ? ({ length: 160, duration: 160 / SAMPLE_RATE, getChannelData: () => long } as unknown as AudioBuffer)
+        ? ({
+            length: 160,
+            duration: 160 / FILE_RATE,
+            sampleRate: FILE_RATE,
+            getChannelData: () => long,
+          } as unknown as AudioBuffer)
         : base(p);
     const s = state({ tenor: { included: false }, baritone: { included: false } });
     const { pcm } = await renderMix(src, s, "stereo");

@@ -49,17 +49,29 @@ export async function renderMix(
   state: MixerState,
   mode: OutputMode,
 ): Promise<RenderedMix> {
-  const sampleRate = source.ctx.sampleRate;
+  // The rate is the loaded stems' own — NOT `ctx.sampleRate`. The two differ on
+  // Android, whose WebView `AudioContext` runs at the device rate (e.g. 48 kHz)
+  // while the stems keep their decoded 44.1 kHz. The samples we mix here are the
+  // buffers' raw data at the buffers' rate, so labelling the export with the
+  // context's rate shifts its pitch — and the tempo stretch, which runs on this
+  // rate downstream, inherits the error. (The preview escapes it because Web
+  // Audio resamples buffers to the context on playback.)
+  let sampleRate = source.ctx.sampleRate;
 
   // Gather the audible parts with their left/right gains. Equal-power pan
   // (StereoPannerNode's law): a centred part sits at cos(45°)=sin(45°)≈0.707 in
   // each channel, hard-left at 1/0, hard-right at 0/1.
   const voices: { data: Float32Array; gl: number; gr: number }[] = [];
-  let length = Math.max(1, Math.ceil(source.duration * sampleRate));
+  let length = 1;
+  let rateFromBuffer = false;
   for (const part of PARTS) {
     const buffer = source.getBuffer(part);
     const gain = effectiveGain(state, part) * state.masterGain;
     if (!buffer || gain === 0) continue;
+    if (!rateFromBuffer) {
+      sampleRate = buffer.sampleRate;
+      rateFromBuffer = true;
+    }
     const angle = ((state.mix[part].pan + 1) * Math.PI) / 4; // -1..1 -> 0..π/2
     const data = buffer.getChannelData(0);
     length = Math.max(length, data.length);
