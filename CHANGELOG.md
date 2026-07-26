@@ -5,6 +5,23 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-07-26
+
+### Fixed
+
+- **Android: page content no longer sits under the system status and navigation
+  bars** — the edge-to-edge viewport now respects the safe-area insets.
+- **Android: exported files can be opened** from the Recent exports list; the
+  Open action was previously desktop-only.
+- **The 1.1.3 Android release build didn't compile its signing config** (a Gradle
+  Kotlin-script error), so it produced no APK. It now builds the intended signed
+  ~14 MB release APK.
+
+### Changed
+
+- Renamed the preset button to "Save current mix as preset".
+- CI runs on Node 22 (Node 20 reached end of life).
+
 ## [1.1.3] - 2026-07-26
 
 ### Changed
@@ -81,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files, plus save-able export presets and bulk export.
 - Desktop and Android builds (Tauri v2).
 
+[1.1.4]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.4
 [1.1.3]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.3
 [1.1.2]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.2
 [1.1.1]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.1

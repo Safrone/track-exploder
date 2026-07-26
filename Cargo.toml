@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/audio-core", "src-tauri"]
 
 [workspace.package]
-version = "1.1.3"
+version = "1.1.4"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/Safrone/track-exploder"
