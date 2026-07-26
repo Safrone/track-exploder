@@ -5,6 +5,16 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-07-26
+
+### Changed
+
+- **The Android APK is now a signed release build** rather than a debug one: it's
+  about **10× smaller** (the debug APK carried ~200 MB of unstripped native debug
+  symbols), and the release CI now caches the Android NDK and Gradle so builds are
+  quicker. Signed with the same key as 1.1.2, so updates between them install in
+  place.
+
 ## [1.1.2] - 2026-07-26
 
 ### Fixed
@@ -71,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files, plus save-able export presets and bulk export.
 - Desktop and Android builds (Tauri v2).
 
+[1.1.3]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.3
 [1.1.2]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.2
 [1.1.1]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.0
