@@ -147,8 +147,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+      # Gradle downloads the Android Gradle Plugin, Kotlin toolchain and its whole
+      # dependency tree on a cold run; caching ~/.gradle keeps that off the clock.
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+      # The NDK is a ~1 GB download; cache it so only the first release pays for it.
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+          key: android-ndk-27.2.12479018
       - name: Install NDK
         run: |
           sdkmanager "ndk;27.2.12479018"
@@ -162,32 +178,45 @@ jobs:
           dest=src-tauri/gen/android/app/src/main/res
           cp -rf src-tauri/icons/android/mipmap-* "$dest/"
           cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
-      # A debug APK is signed with ~/.android/debug.keystore. Left to itself every
-      # CI run generates a fresh random key, so Android refuses to install a new
-      # release over an older one (signature mismatch) and you must uninstall
-      # first. Seeding one fixed keystore (kept as a repo secret) keeps the
-      # signature constant across releases, so updates install in place. If the
-      # secret is missing the build still works — it just falls back to an
-      # ephemeral key, as before.
-      - name: Use a stable debug signing key
+      # A release APK strips the native library, so it's an order of magnitude
+      # smaller than the old debug APK (which kept full symbols → ~200 MB). The
+      # generated release build type has no signing config, so inject one that
+      # uses our keystore — the same key as before, so updates stay compatible.
+      - name: Configure release signing
         env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            mkdir -p "$HOME/.android"
-            echo "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
-            echo "Using the stable debug keystore."
-          else
-            echo "::warning::ANDROID_DEBUG_KEYSTORE_BASE64 is not set — this APK gets an ephemeral signature and won't install as an update over a differently-signed build."
+          set -eu
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::ANDROID_DEBUG_KEYSTORE_BASE64 is not set; a release APK cannot be signed." >&2
+            exit 1
           fi
-      - name: Build Android APK (arm64, with MP3)
-        run: npm run tauri android build -- --debug --apk --target aarch64 --features mp3
+          ks="$RUNNER_TEMP/release.keystore"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ks"
+          {
+            echo "keyAlias=androiddebugkey"
+            echo "password=android"
+            echo "storeFile=$ks"
+          } > src-tauri/gen/android/keystore.properties
+          python3 .github/scripts/patch-android-signing.py
+      - name: Build Android APK (arm64, release, with MP3)
+        run: npm run tauri android build -- --apk --target aarch64 --features mp3
       - name: Attach APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*debug*.apk' | head -1)
-          if [ -z "$apk" ]; then echo "No APK found" >&2; exit 1; fi
+          set -eu
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' ! -name '*unsigned*' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "No signed release APK found" >&2
+            find src-tauri/gen/android -name '*.apk' || true
+            exit 1
+          fi
+          # Verify it's actually signed, so a mis-applied config fails the release
+          # rather than shipping an un-installable APK.
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk"
           dest="Track-Exploder_${GITHUB_REF_NAME}_android-arm64.apk"
           cp "$apk" "$dest"
+          ls -lh "$dest"
           gh release upload "$GITHUB_REF_NAME" "$dest" --clobber
