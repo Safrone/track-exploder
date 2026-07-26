@@ -48,7 +48,7 @@
       bind:value={presetName}
       onkeydown={(e) => e.key === "Enter" && save()}
     />
-    <button class="save" onclick={save} disabled={!presetName.trim()}>Save current mix</button>
+    <button class="save" onclick={save} disabled={!presetName.trim()}>Save current mix as preset</button>
   </div>
 
   {#if $userPresets.length > 0}

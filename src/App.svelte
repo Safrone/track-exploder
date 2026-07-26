@@ -335,7 +335,10 @@
   main {
     max-width: 1120px;
     margin: 0 auto;
-    padding: 1.25rem;
+    /* The viewport is edge-to-edge (viewport-fit=cover), so pad past the phone's
+       status bar and navigation bar; the max() keeps the desktop padding. */
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+      max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
     gap: 1rem;
