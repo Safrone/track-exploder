@@ -14,8 +14,8 @@ jobs:
     name: Frontend (type-check + tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -33,7 +33,7 @@ jobs:
     name: Rust audio-core (fmt + clippy + tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -47,8 +47,8 @@ jobs:
     name: Tauri app crate (fmt + clippy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -77,8 +77,8 @@ jobs:
         platform: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -98,12 +98,12 @@ jobs:
     name: Android debug APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -114,7 +114,7 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
       - name: Install NDK
         run: |
           sdkmanager "ndk;27.2.12479018"
@@ -128,7 +128,7 @@ jobs:
           cp -rf src-tauri/icons/android/mipmap-* "$dest/"
           cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
           npm run tauri android build -- --debug --apk --target aarch64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: track-exploder-debug-apk
           path: src-tauri/gen/android/app/build/outputs/apk/**/*debug*.apk
