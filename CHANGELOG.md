@@ -5,6 +5,32 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-07-27
+
+### Added
+
+- **Debug builds: "Load sample tracks"** in About → Developer — loads a synthetic
+  four-part set so the mixer, waveforms, transport, tempo and export can be
+  exercised without picking files.
+
+### Changed
+
+- **Export defaults to MP3** when the MP3 encoder is compiled in.
+- **Playback time shows the tempo-adjusted length.** With time-stretch on, the
+  clock shows how long the mix is actually heard, with the original length in
+  parentheses (e.g. `4:00 (3:00)`).
+
+### Fixed
+
+- **Android: opening an exported file now offers a media player** instead of an
+  "octet-stream / Save as" dialog — the Open action passes the file's real MIME
+  type.
+- **Touch: sliders no longer move when you scroll past them.** Starting a
+  vertical swipe on a gain/pan/tempo/master/scrub slider now scrolls the page
+  instead of changing its value; a horizontal drag still adjusts it and a
+  double-tap still resets it.
+- **The About dialog shows the real app version** (it was hardcoded to 1.0.0).
+
 ## [1.1.4] - 2026-07-26
 
 ### Fixed
