@@ -1,7 +1,7 @@
 <script lang="ts">
   import { mixer, patchState } from "../mixer/store";
   import { getEngine, position, duration, isPlaying, stretchProgress } from "../audio/playback";
-  import { resetOnDblClick } from "../actions";
+  import { rangeGesture } from "../actions";
   import ProgressBar from "./ProgressBar.svelte";
 
   // Local slider value while dragging; committed to the store on release so the
@@ -17,6 +17,14 @@
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
+
+  // Times are tracked in source-seconds; when time-stretch is on, the audio is
+  // actually heard over source/tempo seconds. Show the heard length (with the
+  // original in parentheses) so the clock matches what's playing.
+  const rate = $derived($mixer.tempoEnabled ? $mixer.tempo : 1);
+  const heardPosition = $derived($position / rate);
+  const heardDuration = $derived($duration / rate);
+  const stretched = $derived(rate !== 1);
 
   async function toggle() {
     const engine = getEngine();
@@ -39,7 +47,7 @@
     {$isPlaying ? "❚❚" : "►"}
   </button>
 
-  <span class="time">{fmt($position)}</span>
+  <span class="time">{fmt(heardPosition)}</span>
   <input
     class="scrub"
     type="range"
@@ -47,9 +55,12 @@
     max={$duration || 0}
     step="0.01"
     value={$position}
+    use:rangeGesture
     oninput={seek}
   />
-  <span class="time">{fmt($duration)}</span>
+  <span class="time"
+    >{fmt(heardDuration)}{#if stretched}<span class="orig"> ({fmt($duration)})</span>{/if}</span
+  >
 
   <div class="tempo">
     <label class="tempo-head" title="Pitch-preserving time-stretch. Off = no extra processing.">
@@ -71,7 +82,7 @@
       step="0.05"
       value={dragTempo}
       disabled={!$mixer.tempoEnabled || !!$stretchProgress}
-      use:resetOnDblClick={1}
+      use:rangeGesture={{ resetValue: 1 }}
       oninput={(e) => (dragTempo = +e.currentTarget.value)}
       onchange={(e) => patchState({ tempo: +e.currentTarget.value })}
     />
@@ -90,7 +101,7 @@
       max="1.5"
       step="0.01"
       value={$mixer.masterGain}
-      use:resetOnDblClick={1}
+      use:rangeGesture={{ resetValue: 1 }}
       oninput={(e) => patchState({ masterGain: +e.currentTarget.value })}
     />
   </label>
@@ -121,6 +132,10 @@
     font-variant-numeric: tabular-nums;
     color: var(--text-dim);
     min-width: 3ch;
+  }
+  .orig {
+    opacity: 0.6;
+    font-size: 0.85em;
   }
   .scrub {
     flex: 1 1 200px;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Part } from "../types";
   import { mixer, setPartMix, setAlignment } from "../mixer/store";
-  import { resetOnDblClick } from "../actions";
+  import { rangeGesture } from "../actions";
   import { currentEngine } from "../audio/playback";
   import { noAlignment, nudge, shiftMs } from "../audio/align";
 
@@ -64,7 +64,7 @@
       max="2"
       step="0.01"
       value={m.gain}
-      use:resetOnDblClick={1}
+      use:rangeGesture={{ resetValue: 1 }}
       oninput={(e) => setPartMix(part, { gain: +e.currentTarget.value })}
     />
   </label>
@@ -85,7 +85,7 @@
       step="0.02"
       value={m.pan}
       style="--lo:{Math.min(50, panPct)}%; --hi:{Math.max(50, panPct)}%"
-      use:resetOnDblClick={0}
+      use:rangeGesture={{ resetValue: 0 }}
       oninput={(e) => setPartMix(part, { pan: +e.currentTarget.value })}
     />
   </label>

@@ -40,4 +40,7 @@ button {
 
 input[type="range"] {
   height: 4px;
+  /* Permit vertical page panning; the rangeGesture action (see actions.ts)
+     handles horizontal drag vs. scroll so a swipe over a fader scrolls. */
+  touch-action: pan-y;
 }
