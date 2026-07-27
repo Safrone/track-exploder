@@ -1,13 +1,37 @@
 <script lang="ts">
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { invokeDebugBuild } from "../audio/tauri";
 
   interface Props {
     open: boolean;
     onClose: () => void;
+    /** Debug builds only: load a synthetic four-part set for testing. */
+    onLoadSamples?: () => void;
   }
-  let { open, onClose }: Props = $props();
+  let { open, onClose, onLoadSamples }: Props = $props();
 
-  const VERSION = "1.0.0";
+  let isDebug = $state(false);
+  let debugChecked = false;
+  $effect(() => {
+    if (debugChecked) return;
+    debugChecked = true;
+    void invokeDebugBuild()
+      .then((d) => (isDebug = d))
+      .catch(() => {});
+  });
+
+  // Read the real app version (from tauri.conf.json) so it can't drift.
+  let version = $state("");
+  let versionChecked = false;
+  $effect(() => {
+    if (versionChecked) return;
+    versionChecked = true;
+    void getVersion()
+      .then((v) => (version = v))
+      .catch(() => {});
+  });
+
   const REPO_URL: string = "https://github.com/Safrone/track-exploder";
   const AUTHOR = "Eric Blum";
   const CONTACT: string = "eblumster@gmail.com"; // empty hides the row
@@ -38,7 +62,7 @@
           <img src="/logo.svg" alt="" class="logo" />
           <div>
             <h3>Track Exploder</h3>
-            <span class="ver">Version {VERSION}</span>
+            {#if version}<span class="ver">Version {version}</span>{/if}
           </div>
         </div>
         <button class="x" onclick={onClose} aria-label="Close">×</button>
@@ -71,6 +95,20 @@
           >.
         </p>
       </div>
+
+      {#if isDebug && onLoadSamples}
+        <div class="section debug">
+          <h4>Developer</h4>
+          <button
+            class="sample-btn"
+            onclick={() => {
+              onLoadSamples?.();
+              onClose();
+            }}>Load sample tracks</button
+          >
+          <p class="hint">Debug build only — loads a synthetic four-part set for testing.</p>
+        </div>
+      {/if}
 
       {#if REPO_URL || CONTACT || KOFI_URL}
         <div class="links">
@@ -182,6 +220,21 @@
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+  .debug .hint {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    margin: 0.35rem 0 0;
+  }
+  .sample-btn {
+    background: var(--accent);
+    color: #05221a;
+    border: none;
+    border-radius: 8px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
   }
   .link-btn {
     background: var(--panel-2);

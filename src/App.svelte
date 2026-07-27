@@ -18,6 +18,7 @@
     basename,
   } from "./lib/audio/load";
   import { analyzeAlignment, shiftMs } from "./lib/audio/align";
+  import { loadSampleTracks } from "./lib/audio/sampleTracks";
   import { partLanes, type PartLane } from "./lib/audio/waveform";
   import { isTauri } from "./lib/audio/tauri";
   import { readAudioTags } from "./lib/audio/decode";
@@ -190,6 +191,17 @@
     toast("Parts play exactly as recorded.", "info");
   }
 
+  /** Debug builds: load a synthetic four-part set so the UI can be tried without files. */
+  function loadSamples() {
+    clearTags();
+    clearAlignment();
+    const engine = getEngine();
+    const loaded = loadSampleTracks(engine);
+    engine.applyMix(snapshot());
+    rewindPlayback();
+    toast(`Loaded sample tracks: ${loaded.join(", ")}`, "success");
+  }
+
   async function setSourceChannel(channel: Channel) {
     if (channel === $mixer.sourceChannel) return;
     patchState({ sourceChannel: channel });
@@ -231,7 +243,7 @@
     </div>
   </header>
 
-  <About open={showAbout} onClose={() => (showAbout = false)} />
+  <About open={showAbout} onClose={() => (showAbout = false)} onLoadSamples={loadSamples} />
   <Toaster />
 
   {#if !tauri}
