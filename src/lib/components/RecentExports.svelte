@@ -8,12 +8,20 @@
   let err = $state("");
   const recent = $derived([...$exportsList].reverse());
 
-  async function openFile(path: string) {
+  // The SAF content provider often reports exports as application/octet-stream,
+  // which matches no player; tell the view intent the real type from the format.
+  const MIME: Record<string, string> = {
+    wav: "audio/wav",
+    flac: "audio/flac",
+    mp3: "audio/mpeg",
+  };
+
+  async function openFile(rec: { path: string; format: string }) {
     try {
       // The opener plugin can't open a content:// URI on Android, so hand it to
       // a native view intent there; desktop uses the plugin.
-      if (desktop) await openPath(path);
-      else await invokeOpenUri(path);
+      if (desktop) await openPath(rec.path);
+      else await invokeOpenUri(rec.path, MIME[rec.format] ?? "audio/*");
     } catch (e) {
       err = `Could not open: ${e}`;
     }
@@ -41,7 +49,7 @@
       {#each recent as rec (rec.path + rec.at)}
         <tr>
           <td class="fname" title={rec.path}>{rec.name}</td>
-          <td><button class="link" onclick={() => openFile(rec.path)}>Open</button></td>
+          <td><button class="link" onclick={() => openFile(rec)}>Open</button></td>
           {#if desktop}
             <td><button class="link" onclick={() => openFolder(rec.path)}>Open folder</button></td>
           {:else}
