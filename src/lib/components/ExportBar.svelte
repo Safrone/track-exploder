@@ -7,7 +7,7 @@
   import { addExport, getLastExportDir, setLastExportDir, splitDir } from "../mixer/exports";
   import { getEngine } from "../audio/playback";
   import { renderMix } from "../audio/export";
-  import { invokeEncodeMix, invokeEmbedTags } from "../audio/tauri";
+  import { invokeEncodeMix, invokeEmbedTags, invokeMp3Enabled } from "../audio/tauri";
   import { writeBytes, isRealPath } from "../audio/files";
   import ProgressBar from "./ProgressBar.svelte";
   import RecentExports from "./RecentExports.svelte";
@@ -24,6 +24,23 @@
   let busy = $state(false);
   let progress = $state(0);
   let message = $state("");
+
+  // MP3 export is an optional build feature. Only offer it when it's compiled in,
+  // and prefer it as the default when available (smaller files, widely playable).
+  let mp3Available = $state(false);
+  let mp3Checked = false;
+  $effect(() => {
+    if (mp3Checked) return;
+    mp3Checked = true;
+    void invokeMp3Enabled()
+      .then((enabled) => {
+        mp3Available = enabled;
+        if (enabled && !nameEdited && format === "wav") format = "mp3";
+      })
+      .catch(() => {
+        /* not in a Tauri webview, or command unavailable */
+      });
+  });
 
   const EXT: Record<ExportFormat, string> = { wav: "wav", flac: "flac", mp3: "mp3" };
 
@@ -139,9 +156,9 @@
     <label>
       Format
       <select bind:value={format}>
+        {#if mp3Available}<option value="mp3">MP3</option>{/if}
         <option value="wav">WAV</option>
         <option value="flac">FLAC</option>
-        <option value="mp3">MP3</option>
       </select>
     </label>
 
