@@ -282,13 +282,28 @@ async fn content_name(_uri: String) -> Result<Option<String>, String> {
 /// (its `OpenArgs` fails to deserialize), so fire an `ACTION_VIEW` intent
 /// ourselves and grant the resolved app read access to the URI. Desktop keeps
 /// using the opener plugin; this command is Android-only.
+/// Whether MP3 export is compiled into this build (the optional `mp3` feature).
+/// The UI uses this to offer — and default to — MP3 only when it's available.
 #[tauri::command]
-async fn open_uri(uri: String) -> Result<(), String> {
+fn mp3_enabled() -> bool {
+    cfg!(feature = "mp3")
+}
+
+/// Whether this is a debug build. The UI gates developer conveniences (e.g. the
+/// "load sample tracks" button) on it. `import.meta.env.DEV` can't tell — Tauri
+/// always production-builds the frontend — so ask the native side.
+#[tauri::command]
+fn debug_build() -> bool {
+    cfg!(debug_assertions)
+}
+
+#[tauri::command]
+async fn open_uri(uri: String, mime: Option<String>) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
         wry::prelude::dispatch(move |env, activity, _webview| {
-            let _ = tx.send(android_open_uri(env, activity, &uri));
+            let _ = tx.send(android_open_uri(env, activity, &uri, mime.as_deref()));
         });
         tauri::async_runtime::spawn_blocking(move || {
             rx.recv()
@@ -299,7 +314,7 @@ async fn open_uri(uri: String) -> Result<(), String> {
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = uri;
+        let _ = (uri, mime);
         Err("open_uri is Android-only".into())
     }
 }
@@ -312,6 +327,7 @@ fn android_open_uri(
     env: &mut jni::JNIEnv,
     activity: &jni::objects::JObject,
     uri: &str,
+    mime: Option<&str>,
 ) -> Result<(), String> {
     use jni::objects::JObject;
 
@@ -331,31 +347,39 @@ fn android_open_uri(
         .and_then(|v| v.l())
         .map_err(|e| format!("Uri.parse: {e}"))?;
 
-    // MIME type from the resolver, falling back to */* so a viewer is still offered.
-    let resolver = env
-        .call_method(
-            activity,
-            "getContentResolver",
-            "()Landroid/content/ContentResolver;",
-            &[],
-        )
-        .and_then(|v| v.l())
-        .map_err(|e| format!("getContentResolver: {e}"))?;
-    let type_val = env
-        .call_method(
-            &resolver,
-            "getType",
-            "(Landroid/net/Uri;)Ljava/lang/String;",
-            &[(&uri_obj).into()],
-        )
-        .and_then(|v| v.l())
-        .map_err(|e| format!("getType: {e}"))?;
-    let mime: JObject = if type_val.is_null() {
-        env.new_string("*/*")
-            .map_err(|e| format!("fallback mime: {e}"))?
+    // Prefer the caller's MIME (from the file extension); the content resolver
+    // often reports `application/octet-stream` for a SAF export, which matches no
+    // media player. Fall back to the resolver, then to */*.
+    let mime_obj: JObject = if let Some(m) = mime {
+        env.new_string(m)
+            .map_err(|e| format!("mime string: {e}"))?
             .into()
     } else {
-        type_val
+        let resolver = env
+            .call_method(
+                activity,
+                "getContentResolver",
+                "()Landroid/content/ContentResolver;",
+                &[],
+            )
+            .and_then(|v| v.l())
+            .map_err(|e| format!("getContentResolver: {e}"))?;
+        let type_val = env
+            .call_method(
+                &resolver,
+                "getType",
+                "(Landroid/net/Uri;)Ljava/lang/String;",
+                &[(&uri_obj).into()],
+            )
+            .and_then(|v| v.l())
+            .map_err(|e| format!("getType: {e}"))?;
+        if type_val.is_null() {
+            env.new_string("*/*")
+                .map_err(|e| format!("fallback mime: {e}"))?
+                .into()
+        } else {
+            type_val
+        }
     };
 
     // Intent(ACTION_VIEW).setDataAndType(uri, mime), with read-grant + new-task flags.
@@ -372,7 +396,7 @@ fn android_open_uri(
         &intent,
         "setDataAndType",
         "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;",
-        &[(&uri_obj).into(), (&mime).into()],
+        &[(&uri_obj).into(), (&mime_obj).into()],
     )
     .map_err(|e| format!("setDataAndType: {e}"))?;
     // FLAG_GRANT_READ_URI_PERMISSION (0x1) | FLAG_ACTIVITY_NEW_TASK (0x1000_0000)
@@ -510,6 +534,8 @@ pub fn run() {
             read_tags,
             content_name,
             open_uri,
+            mp3_enabled,
+            debug_build,
             embed_tags
         ])
         .run(tauri::generate_context!())

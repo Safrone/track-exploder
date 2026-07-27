@@ -85,8 +85,18 @@ export async function invokeAnalyzeAlignment(
  * ACTION_VIEW intent. Desktop uses the opener plugin instead — the plugin's
  * `open_path` can't handle Android content URIs.
  */
-export async function invokeOpenUri(uri: string): Promise<void> {
-  await invoke("open_uri", { uri });
+export async function invokeOpenUri(uri: string, mime?: string): Promise<void> {
+  await invoke("open_uri", { uri, mime });
+}
+
+/** Whether MP3 export is compiled into this build (the optional `mp3` feature). */
+export async function invokeMp3Enabled(): Promise<boolean> {
+  return (await invoke("mp3_enabled")) as boolean;
+}
+
+/** Whether this is a debug build (gates developer-only UI). */
+export async function invokeDebugBuild(): Promise<boolean> {
+  return (await invoke("debug_build")) as boolean;
 }
 
 /** Read a normalized set of tags (album, artist, title, …) from a file path/URI. */
