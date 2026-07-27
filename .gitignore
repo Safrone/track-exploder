@@ -30,3 +30,6 @@ Thumbs.db
 /samples/fixtures/
 /samples/fixtures.tmp-*/
 !/samples/README.md
+
+# Release signing key (public key; distributed as a release asset, not in-tree)
+/track-exploder-signing-key.asc
