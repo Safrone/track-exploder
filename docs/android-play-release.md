@@ -79,12 +79,23 @@ dex against 8.6 MB of native code), but Tauri's Kotlin classes are called from
 Rust over JNI, and R8 can strip or rename them in ways that only fail at runtime
 on a device. Not worth it without real device testing behind it.
 
-**"No debug symbols"** should no longer appear. The workspace release profile
-strips binaries, so the bundle used to carry no symbols at all — meaning a Rust
-panic (which aborts) surfaced as a bare address. The AAB workflow now keeps the
-symbol table and has AGP package it into the bundle's metadata, which Play reads
-directly. If the warning comes back, check the workflow log for the
-`No native debug symbols in the bundle` warning.
+**"No debug symbols"** took two attempts to fix, and the first one made things
+worse — worth knowing if it ever regresses.
+
+The workspace release profile sets `strip = true`, so the bundle carried no
+symbols and a Rust panic (which aborts) surfaced as a bare address. Keeping the
+symbols (`CARGO_PROFILE_RELEASE_STRIP=none`) was necessary but not sufficient:
+Tauri's template leaves `ndkVersion` unset, so AGP looked for its own default NDK
+(27.0.12077973), didn't find it, and skipped *both* the task that extracts debug
+symbols and the task that strips the packaged library. Version 1001006 therefore
+shipped a 15 MB unstripped library per ABI — more than double the 6.8 MB stripped
+one — and still had no symbols for Play.
+
+The build now pins `ndkVersion` to the NDK CI installs, so both tasks run. Two
+things keep it honest: `patch-android-signing.py` fails if that NDK is missing,
+and the workflow fails if the finished bundle has no symbols or if the library it
+packages is unstripped. `NDK_VERSION` in the script must stay in step with the
+`sdkmanager "ndk;<version>"` line in both Android workflows.
 
 ## Play Console checklist
 

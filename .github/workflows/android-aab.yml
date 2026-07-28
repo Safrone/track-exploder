@@ -153,15 +153,28 @@ jobs:
             exit 1
           fi
           # Native debug symbols ride along in BUNDLE-METADATA; Play reads them
-          # from the bundle, so there's no separate symbols upload. A warning
-          # rather than an error: a bundle without them is still shippable, it
-          # just gets unsymbolicated native crash reports.
+          # from the bundle, so there's no separate symbols upload.
           syms=$(unzip -l "$aab" | grep -c 'BUNDLE-METADATA/com.android.tools.build.debugsymbols' || true)
           if [ "$syms" -eq 0 ]; then
-            echo "::warning::No native debug symbols in the bundle; Play will warn about this on upload"
-          else
-            echo "native debug symbols present ($syms entries)"
+            echo "::error::No native debug symbols in the bundle — AGP's extract task did not run" >&2
+            exit 1
           fi
+          echo "native debug symbols present ($syms entries)"
+          # The same AGP task that extracts symbols also strips the packaged
+          # library. If extraction silently no-ops, the build keeps the unstripped
+          # library cargo produced and ships it — that's how 1001006 went out at
+          # 15 MB per ABI instead of 6.8 MB. Check the shipped library directly.
+          unzip -q -o "$aab" 'base/lib/*/libtrack_exploder_lib.so' -d "$RUNNER_TEMP/aabcheck"
+          for so in "$RUNNER_TEMP"/aabcheck/base/lib/*/libtrack_exploder_lib.so; do
+            desc=$(file -b "$so")
+            echo "$(basename "$(dirname "$so")"): $(stat -c%s "$so") bytes — $desc"
+            case "$desc" in
+              *"not stripped"*|*"with debug_info"*)
+                echo "::error::$so is unstripped; AGP did not strip the packaged library" >&2
+                exit 1
+                ;;
+            esac
+          done
           version=$(jq -r .version src-tauri/tauri.conf.json)
           code=$(grep '^tauri.android.versionCode=' src-tauri/gen/android/app/tauri.properties | cut -d= -f2)
           dest="$RUNNER_TEMP/Track-Exploder_${version}_${code}.aab"
