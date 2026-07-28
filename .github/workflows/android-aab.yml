@@ -108,12 +108,18 @@ jobs:
             echo "keyPassword=${KEY_PASSWORD:-$STORE_PASSWORD}"
             echo "storeFile=$ks"
           } > src-tauri/gen/android/keystore.properties
-          python3 .github/scripts/patch-android-signing.py
+          python3 .github/scripts/patch-android-signing.py --debug-symbols
       # No --split-per-abi: Play wants one bundle carrying every ABI and does the
       # per-device splitting itself.
       - name: Build AAB (release, with MP3)
         env:
           VERSION_CODE: ${{ inputs.version_code }}
+          # The workspace release profile sets `strip = true`, which would leave
+          # AGP nothing to collect for debugSymbolLevel. Keep the symbol table in
+          # the .so cargo hands to Gradle; AGP strips the copy that ships, so the
+          # download size is unchanged. Scoped to this workflow — desktop release
+          # binaries stay stripped.
+          CARGO_PROFILE_RELEASE_STRIP: none
         run: |
           set -eu
           args=(--aab --target aarch64 x86_64 --features mp3)
@@ -145,6 +151,16 @@ jobs:
           if echo "$certs" | grep -q "CN=Android Debug"; then
             echo "::error::The AAB is signed with the Android debug key; Play will reject it" >&2
             exit 1
+          fi
+          # Native debug symbols ride along in BUNDLE-METADATA; Play reads them
+          # from the bundle, so there's no separate symbols upload. A warning
+          # rather than an error: a bundle without them is still shippable, it
+          # just gets unsymbolicated native crash reports.
+          syms=$(unzip -l "$aab" | grep -c 'BUNDLE-METADATA/com.android.tools.build.debugsymbols' || true)
+          if [ "$syms" -eq 0 ]; then
+            echo "::warning::No native debug symbols in the bundle; Play will warn about this on upload"
+          else
+            echo "native debug symbols present ($syms entries)"
           fi
           version=$(jq -r .version src-tauri/tauri.conf.json)
           code=$(grep '^tauri.android.versionCode=' src-tauri/gen/android/app/tauri.properties | cut -d= -f2)

@@ -68,6 +68,24 @@ as you bump the version. The workflow's optional `versionCode` input exists for
 the one case that breaks: re-uploading after Play has already accepted that
 number, where Play demands a higher one but the app version hasn't changed.
 
+## Upload warnings
+
+Play shows two warnings on upload. Neither blocks a release.
+
+**"No deobfuscation file"** is expected and needs no action: the build disables
+R8, so there's nothing to deobfuscate. Enabling it would save on the order of
+1–2 MB of a ~14 MB download (measured on the v1.1.5 APK: 4.2 MB of compressed
+dex against 8.6 MB of native code), but Tauri's Kotlin classes are called from
+Rust over JNI, and R8 can strip or rename them in ways that only fail at runtime
+on a device. Not worth it without real device testing behind it.
+
+**"No debug symbols"** should no longer appear. The workspace release profile
+strips binaries, so the bundle used to carry no symbols at all — meaning a Rust
+panic (which aborts) surfaced as a bare address. The AAB workflow now keeps the
+symbol table and has AGP package it into the bundle's metadata, which Play reads
+directly. If the warning comes back, check the workflow log for the
+`No native debug symbols in the bundle` warning.
+
 ## Play Console checklist
 
 Code isn't the whole submission. You'll also need a store listing (screenshots,

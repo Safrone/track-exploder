@@ -45,12 +45,27 @@ SIGNING_CONFIG = """
 
 PROPERTIES_IMPORT = "import java.util.Properties"
 
+# Play warns when a bundle carries native code without symbols, and a Rust panic
+# aborts, so an unsymbolicated crash report is a bare address in
+# libtrack_exploder_lib.so. SYMBOL_TABLE (rather than FULL) is the right level:
+# the release profile emits no DWARF, so function names are all there is to keep.
+#
+# AGP extracts these into BUNDLE-METADATA and still ships a stripped library to
+# devices, so this costs nothing in download size. It only produces symbols if
+# cargo left them in — see CARGO_PROFILE_RELEASE_STRIP in android-aab.yml.
+DEBUG_SYMBOLS = """
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }"""
+
 
 def fail(msg: str) -> None:
     sys.exit(f"patch-android-signing: {msg}")
 
 
 def main() -> None:
+    debug_symbols = "--debug-symbols" in sys.argv[1:]
+
     with open(GRADLE) as fh:
         src = fh.read()
 
@@ -67,11 +82,10 @@ def main() -> None:
     release = 'getByName("release") {'
     if release not in src:
         fail("could not find the release build type")
-    src = src.replace(
-        release,
-        release + '\n            signingConfig = signingConfigs.getByName("release")',
-        1,
-    )
+    injected = '\n            signingConfig = signingConfigs.getByName("release")'
+    if debug_symbols:
+        injected += DEBUG_SYMBOLS
+    src = src.replace(release, release + injected, 1)
 
     if "isMinifyEnabled = true" not in src:
         fail("release build type no longer sets isMinifyEnabled = true")
@@ -79,7 +93,8 @@ def main() -> None:
 
     with open(GRADLE, "w") as fh:
         fh.write(src)
-    print("patched", GRADLE, "for release signing")
+    what = "release signing" + (" + native debug symbols" if debug_symbols else "")
+    print("patched", GRADLE, "for", what)
 
 
 if __name__ == "__main__":
