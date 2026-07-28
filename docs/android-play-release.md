@@ -77,14 +77,30 @@ nothing to deobfuscate. Enabling it would save roughly 1–2 MB of a ~14 MB
 download, but Tauri's Kotlin classes are called from Rust over JNI, where R8 can
 strip or rename them in ways that only fail at runtime on a device.
 
-**"No debug symbols"** should not appear. Getting symbols into the bundle needs
-two things, and each fails silently on its own: cargo has to leave them in (the
-workspace release profile strips), and `ndkVersion` has to be pinned, because
-AGP's default NDK isn't the one CI installs and without it AGP neither extracts
-symbols nor strips the library it packages. `NDK_VERSION` in
-`patch-android-signing.py` must therefore stay in step with the
-`sdkmanager "ndk;<version>"` line in both Android workflows; the script and the
-workflow both fail rather than let a bad bundle through.
+**"No debug symbols"** should not appear. Three things have to hold, and each
+fails silently on its own:
+
+1. Cargo must leave the symbols in — the workspace release profile strips, so the
+   AAB build sets `CARGO_PROFILE_RELEASE_STRIP=none`.
+2. Release packaging must not keep debug symbols. Tauri's template writes
+   `packaging { jniLibs.keepDebugSymbols += ... }` indented inside the *debug*
+   build type, but `BuildType` has no `packaging` member, so Kotlin resolves it
+   against the enclosing `android` block and it applies to every variant. AGP then
+   skips stripping the release library, and since its "stripped" copy is identical
+   to the original it concludes the symbols were already stripped and extracts
+   nothing. `patch-android-signing.py` scopes this back via `androidComponents`.
+3. `ndkVersion` must be pinned, or AGP looks for a different NDK than CI installs
+   and can't run `llvm-objcopy` at all. `NDK_VERSION` in the script has to stay in
+   step with the `sdkmanager "ndk;<version>"` line in both workflows.
+
+All three are silent at default log level — AGP reports the last two only at
+`--info`, as `Unable to extract native debug metadata from ...`. The workflow
+therefore checks the finished bundle for symbols and for an unstripped library,
+and fails rather than shipping one.
+
+If it ever regresses and the build fix isn't obvious, Play Console accepts a
+native debug symbols ZIP per artifact as a fallback: `llvm-objcopy --strip-debug`
+each cargo `.so` into `<abi>/libtrack_exploder_lib.so.sym` and zip the ABI dirs.
 
 ## Play Console checklist
 

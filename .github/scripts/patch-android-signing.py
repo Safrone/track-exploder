@@ -46,11 +46,27 @@ NDK_PIN = f"""
 
 # SYMBOL_TABLE rather than FULL: function names are enough to read a native stack
 # trace without also uploading the DWARF. Only has symbols to extract if cargo
-# left them in — see CARGO_PROFILE_RELEASE_STRIP in android-aab.yml.
+# left them in — see CARGO_PROFILE_RELEASE_STRIP in android-aab.yml. AGP already
+# defaults to this for non-debuggable variants; set it so a default change can't
+# silently turn symbols off.
 DEBUG_SYMBOLS = """
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
             }"""
+
+# The template nests `packaging { jniLibs.keepDebugSymbols += ... }` inside the
+# debug build type, but `BuildType` has no `packaging` member — Kotlin resolves it
+# against the enclosing `android` receiver, so it applies to every variant. Release
+# then keeps its debug symbols, AGP skips stripping, and because the "stripped"
+# copy is byte-identical to the original AGP concludes the symbols were already
+# stripped and extracts nothing. Scope it back to debug via the variant API.
+RELEASE_PACKAGING = """
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.keepDebugSymbols.set(emptySet<String>())
+    }
+}
+"""
 
 
 def fail(msg: str) -> None:
@@ -107,6 +123,8 @@ def main() -> None:
     if "isMinifyEnabled = true" not in src:
         fail("release build type no longer sets isMinifyEnabled = true")
     src = src.replace("isMinifyEnabled = true", "isMinifyEnabled = false", 1)
+
+    src = src.rstrip("\n") + "\n" + RELEASE_PACKAGING
 
     with open(GRADLE, "w") as fh:
         fh.write(src)

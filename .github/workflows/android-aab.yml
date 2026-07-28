@@ -145,7 +145,8 @@ jobs:
             echo "::error::The AAB is signed with the Android debug key; Play will reject it" >&2
             exit 1
           fi
-          # Play reads symbols out of the bundle; there's no separate upload.
+          # Play reads symbols out of the bundle; a per-artifact upload in Play
+          # Console is the fallback if this ever stops working.
           syms=$(unzip -l "$aab" | grep -c 'BUNDLE-METADATA/com.android.tools.build.debugsymbols' || true)
           if [ "$syms" -eq 0 ]; then
             echo "::error::No native debug symbols in the bundle — AGP's extract task did not run" >&2
