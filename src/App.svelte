@@ -31,9 +31,10 @@
   import ProgressBar from "./lib/components/ProgressBar.svelte";
   import RecentExports from "./lib/components/RecentExports.svelte";
   import About from "./lib/components/About.svelte";
+  import ThankYou from "./lib/components/ThankYou.svelte";
   import Toaster from "./lib/components/Toaster.svelte";
   import { toast } from "./lib/toast";
-  import { exportsList } from "./lib/mixer/exports";
+  import { exportsList, showThanks, dismissThanks } from "./lib/mixer/exports";
 
   const WAVE_BUCKETS = 1000;
 
@@ -244,6 +245,7 @@
   </header>
 
   <About open={showAbout} onClose={() => (showAbout = false)} onLoadSamples={loadSamples} />
+  <ThankYou open={$showThanks} onClose={dismissThanks} />
   <Toaster />
 
   {#if !tauri}

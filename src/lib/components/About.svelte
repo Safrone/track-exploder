@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { openUrl } from "@tauri-apps/plugin-opener";
   import { getVersion } from "@tauri-apps/api/app";
   import { invokeDebugBuild } from "../audio/tauri";
+  import { AUTHOR, CONTACT, KOFI_URL, REPO_URL, openExternal as link } from "../links";
 
   interface Props {
     open: boolean;
@@ -32,20 +32,7 @@
       .catch(() => {});
   });
 
-  const REPO_URL: string = "https://github.com/Safrone/track-exploder";
-  const AUTHOR = "Eric Blum";
-  const CONTACT: string = "eblumster@gmail.com"; // empty hides the row
-  const KOFI_URL: string = "https://ko-fi.com/safrone"; // empty hides the row
-
   const YEAR = 2026;
-
-  async function link(url: string) {
-    try {
-      await openUrl(url);
-    } catch {
-      /* only works in the desktop app */
-    }
-  }
 
   function onKey(e: KeyboardEvent) {
     if (open && e.key === "Escape") onClose();
