@@ -118,6 +118,21 @@ jobs:
             find src-tauri/gen/android -name '*.aab' || true
             exit 1
           fi
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          code=$(grep '^tauri.android.versionCode=' src-tauri/gen/android/app/tauri.properties | cut -d= -f2)
+          dest="$RUNNER_TEMP/Track-Exploder_${version}_${code}.aab"
+          cp "$aab" "$dest"
+          ls -lh "$dest"
+          # Set before the checks below so a failed check still uploads the
+          # bundle to inspect.
+          echo "path=$dest" >> "$GITHUB_OUTPUT"
+          # Whether AGP ran its native tasks at all, and on what.
+          echo "--- native intermediates ---"
+          ls -d src-tauri/gen/android/app/build/intermediates/*native* 2>/dev/null || echo "(none)"
+          find src-tauri/gen/android/app/build/intermediates -path '*native*' -name '*.so*' \
+            -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -10 || true
+          echo "--- release build type as patched ---"
+          sed -n '/getByName("release")/,/^        }/p' src-tauri/gen/android/app/build.gradle.kts
           # An AAB is jar-signed, so keytool can read the signer back. The debug
           # cert means a swapped secret; catch it before the upload.
           certs=$(keytool -printcert -jarfile "$aab")
@@ -150,15 +165,10 @@ jobs:
                 ;;
             esac
           done
-          version=$(jq -r .version src-tauri/tauri.conf.json)
-          code=$(grep '^tauri.android.versionCode=' src-tauri/gen/android/app/tauri.properties | cut -d= -f2)
-          dest="$RUNNER_TEMP/Track-Exploder_${version}_${code}.aab"
-          cp "$aab" "$dest"
-          ls -lh "$dest"
-          echo "path=$dest" >> "$GITHUB_OUTPUT"
       # archive: false uploads the .aab as-is rather than wrapping it in a zip,
       # so the download can go straight to Play Console.
       - name: Upload the bundle as a workflow artifact
+        if: always() && steps.bundle.outputs.path != ''
         uses: actions/upload-artifact@v7
         with:
           path: ${{ steps.bundle.outputs.path }}
