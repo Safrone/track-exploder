@@ -98,7 +98,7 @@
   .link:hover {
     text-decoration: underline;
   }
-  .clearcol {
+  .exports th.clearcol {
     text-align: right;
     white-space: nowrap;
   }
