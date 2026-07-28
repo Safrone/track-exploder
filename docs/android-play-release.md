@@ -72,30 +72,19 @@ number, where Play demands a higher one but the app version hasn't changed.
 
 Play shows two warnings on upload. Neither blocks a release.
 
-**"No deobfuscation file"** is expected and needs no action: the build disables
-R8, so there's nothing to deobfuscate. Enabling it would save on the order of
-1–2 MB of a ~14 MB download (measured on the v1.1.5 APK: 4.2 MB of compressed
-dex against 8.6 MB of native code), but Tauri's Kotlin classes are called from
-Rust over JNI, and R8 can strip or rename them in ways that only fail at runtime
-on a device. Not worth it without real device testing behind it.
+**"No deobfuscation file"** is expected: the build disables R8, so there's
+nothing to deobfuscate. Enabling it would save roughly 1–2 MB of a ~14 MB
+download, but Tauri's Kotlin classes are called from Rust over JNI, where R8 can
+strip or rename them in ways that only fail at runtime on a device.
 
-**"No debug symbols"** took two attempts to fix, and the first one made things
-worse — worth knowing if it ever regresses.
-
-The workspace release profile sets `strip = true`, so the bundle carried no
-symbols and a Rust panic (which aborts) surfaced as a bare address. Keeping the
-symbols (`CARGO_PROFILE_RELEASE_STRIP=none`) was necessary but not sufficient:
-Tauri's template leaves `ndkVersion` unset, so AGP looked for its own default NDK
-(27.0.12077973), didn't find it, and skipped *both* the task that extracts debug
-symbols and the task that strips the packaged library. Version 1001006 therefore
-shipped a 15 MB unstripped library per ABI — more than double the 6.8 MB stripped
-one — and still had no symbols for Play.
-
-The build now pins `ndkVersion` to the NDK CI installs, so both tasks run. Two
-things keep it honest: `patch-android-signing.py` fails if that NDK is missing,
-and the workflow fails if the finished bundle has no symbols or if the library it
-packages is unstripped. `NDK_VERSION` in the script must stay in step with the
-`sdkmanager "ndk;<version>"` line in both Android workflows.
+**"No debug symbols"** should not appear. Getting symbols into the bundle needs
+two things, and each fails silently on its own: cargo has to leave them in (the
+workspace release profile strips), and `ndkVersion` has to be pinned, because
+AGP's default NDK isn't the one CI installs and without it AGP neither extracts
+symbols nor strips the library it packages. `NDK_VERSION` in
+`patch-android-signing.py` must therefore stay in step with the
+`sdkmanager "ndk;<version>"` line in both Android workflows; the script and the
+workflow both fail rather than let a bad bundle through.
 
 ## Play Console checklist
 

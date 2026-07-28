@@ -1,17 +1,7 @@
-# Builds the Android App Bundle for a Google Play submission.
-#
-# Deliberately separate from `release.yml`, and manual-only:
-#
-#   * An AAB isn't installable — it's an upload container only Play Console
-#     consumes — so it has no business as a public release asset. It's published
-#     as a workflow artifact instead (Actions tab → this run → Artifacts).
-#   * Play submissions are manual and infrequent, so there's no reason to spend
-#     the Android build on every tag.
-#   * It keeps the upload keystore secrets reachable from this workflow alone.
-#
-# The APK in `release.yml` is signed with the Android *debug* key and is not
-# interchangeable with what this produces. Play rejects debug-signed uploads, so
-# this uses a real upload keystore — see docs/android-play-release.md.
+# Builds the Android App Bundle for a Google Play submission. Separate from the
+# sideload APK in `release.yml`, which is debug-signed and which Play rejects.
+# An AAB isn't installable, so it's published as a workflow artifact rather than
+# a release asset. See docs/android-play-release.md.
 name: Android AAB (Google Play)
 
 on:
@@ -40,16 +30,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      # Play splits the bundle per ABI at install time, so shipping x86_64
-      # alongside arm64 costs users nothing and covers Chromebooks and emulators.
+      # Play splits per ABI at install time, so x86_64 costs users nothing and
+      # covers Chromebooks and emulators.
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, x86_64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
-      # Gradle downloads the Android Gradle Plugin, Kotlin toolchain and its whole
-      # dependency tree on a cold run; caching ~/.gradle keeps that off the clock.
+      # Cold runs pull the whole AGP/Kotlin dependency tree.
       - name: Cache Gradle
         uses: actions/cache@v6
         with:
@@ -79,17 +68,12 @@ jobs:
           dest=src-tauri/gen/android/app/src/main/res
           cp -rf src-tauri/icons/android/mipmap-* "$dest/"
           cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
-      # The generated release build type has no signing config; inject one that
-      # reads the upload keystore. Play still re-signs with its own app signing
-      # key on their side — this key only proves the upload is from us.
       - name: Configure upload signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          # Optional: a PKCS12 keystore (keytool's default since JDK 9) can't hold
-          # a key password separate from the store password, so this is only set
-          # for a legacy JKS-format store.
+          # Only for a legacy JKS store; PKCS12 has no separate key password.
           KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           set -eu
@@ -114,18 +98,13 @@ jobs:
       - name: Build AAB (release, with MP3)
         env:
           VERSION_CODE: ${{ inputs.version_code }}
-          # The workspace release profile sets `strip = true`, which would leave
-          # AGP nothing to collect for debugSymbolLevel. Keep the symbol table in
-          # the .so cargo hands to Gradle; AGP strips the copy that ships, so the
-          # download size is unchanged. Scoped to this workflow — desktop release
-          # binaries stay stripped.
+          # The workspace release profile strips, leaving AGP nothing to collect
+          # for debugSymbolLevel. AGP strips the copy it packages either way.
           CARGO_PROFILE_RELEASE_STRIP: none
         run: |
           set -eu
           args=(--aab --target aarch64 x86_64 --features mp3)
           if [ -n "${VERSION_CODE:-}" ]; then
-            # Tauri derives versionCode from the app version; this overrides it
-            # for the case where Play already has that number and rejects a re-upload.
             args+=(-c "{\"bundle\":{\"android\":{\"versionCode\":$VERSION_CODE}}}")
           fi
           npm run tauri android build -- "${args[@]}"
@@ -139,9 +118,8 @@ jobs:
             find src-tauri/gen/android -name '*.aab' || true
             exit 1
           fi
-          # An AAB is jar-signed, so keytool can read the signer back. Fail loudly
-          # on the debug cert: Play rejects it, and better to catch a swapped
-          # secret here than after a failed upload.
+          # An AAB is jar-signed, so keytool can read the signer back. The debug
+          # cert means a swapped secret; catch it before the upload.
           certs=$(keytool -printcert -jarfile "$aab")
           echo "$certs"
           if [ -z "$certs" ]; then
@@ -152,18 +130,15 @@ jobs:
             echo "::error::The AAB is signed with the Android debug key; Play will reject it" >&2
             exit 1
           fi
-          # Native debug symbols ride along in BUNDLE-METADATA; Play reads them
-          # from the bundle, so there's no separate symbols upload.
+          # Play reads symbols out of the bundle; there's no separate upload.
           syms=$(unzip -l "$aab" | grep -c 'BUNDLE-METADATA/com.android.tools.build.debugsymbols' || true)
           if [ "$syms" -eq 0 ]; then
             echo "::error::No native debug symbols in the bundle — AGP's extract task did not run" >&2
             exit 1
           fi
           echo "native debug symbols present ($syms entries)"
-          # The same AGP task that extracts symbols also strips the packaged
-          # library. If extraction silently no-ops, the build keeps the unstripped
-          # library cargo produced and ships it — that's how 1001006 went out at
-          # 15 MB per ABI instead of 6.8 MB. Check the shipped library directly.
+          # When AGP can't find the NDK it neither extracts symbols nor strips,
+          # and ships cargo's unstripped library at ~2x the size.
           unzip -q -o "$aab" 'base/lib/*/libtrack_exploder_lib.so' -d "$RUNNER_TEMP/aabcheck"
           for so in "$RUNNER_TEMP"/aabcheck/base/lib/*/libtrack_exploder_lib.so; do
             desc=$(file -b "$so")

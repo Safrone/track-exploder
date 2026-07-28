@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
 """Inject a release signing config into Tauri's generated Android Gradle build.
 
-Used by both Android workflows: the sideload APK cut in `release.yml` and the
-Play Store AAB cut in `android-aab.yml`. They differ only in which keystore
-`keystore.properties` points at.
+Used by both Android workflows, which differ only in which keystore
+`keystore.properties` points at. `tauri android init` scaffolds
+`app/build.gradle.kts` fresh on every CI run (the `gen/` tree is git-ignored) and
+its release build type has no signing config, so a release build would be
+unsigned. This adds one, pins `ndkVersion` (left unset by the template, which
+stops AGP stripping native libraries and extracting their debug symbols), and
+turns off R8. See docs/android-play-release.md for the R8 trade-off.
 
-`tauri android init` scaffolds `app/build.gradle.kts` fresh on every CI run (the
-`gen/` tree is git-ignored), and its release build type ships with *no* signing
-config — so a release build would be unsigned and rejected. This adds a
-`signingConfigs.release` that reads `keystore.properties`, points the release
-build type at it, and disables R8/minification (R8 would save on the order of
-1-2 MB of a ~14 MB download, but Tauri's Kotlin classes are reached from Rust
-over JNI, where R8 can strip or rename them in ways that only fail at runtime).
-
-It also pins `ndkVersion`. The template leaves it unset, so AGP looks for its own
-default NDK, which is not the one CI installs; it then can't run the tasks that
-strip native libraries and extract their debug symbols, and silently packages the
-libraries as-is. That shipped a 15 MB unstripped library in the 1001006 bundle.
-
-Anchored on structural tokens from the Tauri template; if the template changes
-shape the script fails loudly rather than emitting a broken build file.
+Anchored on structural tokens from the template; if it changes shape the script
+fails rather than emitting a broken build file.
 """
 
 import os
@@ -27,14 +18,9 @@ import sys
 
 GRADLE = "src-tauri/gen/android/app/build.gradle.kts"
 
-# In a Gradle Kotlin script `java` resolves to the Gradle `java` extension, not
-# the JDK package, so `java.util.Properties` / `java.io.File` don't compile. Use
-# the imported `Properties` and Gradle's `rootProject.file(...)` instead. The
-# `!!` asserts non-null (getProperty is nullable; the signing setters aren't).
-#
-# `storePassword`/`keyPassword` fall back to a single `password` key: the debug
-# keystore used for the sideload APK shares one password, while a real Play
-# upload keystore usually has separate store and key passwords.
+# In a Gradle Kotlin script `java` resolves to the Gradle extension, not the JDK
+# package, so `java.util.Properties` doesn't compile — hence the imported
+# `Properties` and `rootProject.file(...)`.
 SIGNING_CONFIG = """
     signingConfigs {
         create("release") {
@@ -52,23 +38,15 @@ SIGNING_CONFIG = """
 PROPERTIES_IMPORT = "import java.util.Properties"
 
 # Must match the `sdkmanager "ndk;<version>"` line in both Android workflows.
-# AGP 8.11's own default is 27.0.12077973, which CI does not install.
 NDK_VERSION = "27.2.12479018"
 
 NDK_PIN = f"""
     ndkVersion = "{NDK_VERSION}"
 """
 
-# Play warns when a bundle carries native code without symbols, and a Rust panic
-# aborts, so an unsymbolicated crash report is a bare address in
-# libtrack_exploder_lib.so. SYMBOL_TABLE rather than FULL: the library carries
-# DWARF, and function names are enough to read a stack trace without paying to
-# upload several MB of debug_info.
-#
-# AGP extracts these into BUNDLE-METADATA, which Play consumes and never delivers
-# to devices, and separately strips the packaged library. Both tasks need the NDK
-# pinned above. Symbols only exist to extract if cargo left them in — see
-# CARGO_PROFILE_RELEASE_STRIP in android-aab.yml.
+# SYMBOL_TABLE rather than FULL: function names are enough to read a native stack
+# trace without also uploading the DWARF. Only has symbols to extract if cargo
+# left them in — see CARGO_PROFILE_RELEASE_STRIP in android-aab.yml.
 DEBUG_SYMBOLS = """
             ndk {
                 debugSymbolLevel = "SYMBOL_TABLE"
@@ -80,10 +58,10 @@ def fail(msg: str) -> None:
 
 
 def check_ndk() -> None:
-    """Fail if the NDK we pin isn't installed.
+    """Fail if the pinned NDK isn't installed.
 
-    AGP's own response to a missing NDK is a warning buried in Gradle output and
-    a silently unstripped library, which is how 1001006 shipped. Catch it here.
+    AGP's own response is a warning buried in Gradle output and a silently
+    unstripped library.
     """
     home = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     if not home:
@@ -112,8 +90,7 @@ def main() -> None:
     anchor = "\nandroid {"
     if anchor not in src:
         fail("could not find the `android {` block")
-    # If the template starts pinning this itself, its assignment would come after
-    # ours and win silently. Stop and re-check rather than guess which is right.
+    # A template-set ndkVersion would come after ours and win silently.
     if "ndkVersion" in src:
         fail("the template now sets ndkVersion itself; reconcile with NDK_VERSION")
     at = src.index(anchor) + len(anchor)

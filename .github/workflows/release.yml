@@ -178,10 +178,8 @@ jobs:
           dest=src-tauri/gen/android/app/src/main/res
           cp -rf src-tauri/icons/android/mipmap-* "$dest/"
           cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
-      # A release APK strips the native library, so it's an order of magnitude
-      # smaller than the old debug APK (which kept full symbols → ~200 MB). The
-      # generated release build type has no signing config, so inject one that
-      # uses our keystore — the same key as before, so updates stay compatible.
+      # The generated release build type has no signing config; inject one using
+      # our keystore. Same key across releases, so updates install in place.
       - name: Configure release signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
