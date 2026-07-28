@@ -105,7 +105,25 @@ each cargo `.so` into `<abi>/libtrack_exploder_lib.so.sym` and zip the ABI dirs.
 ## Play Console checklist
 
 Code isn't the whole submission. You'll also need a store listing (screenshots,
-feature graphic, description), a privacy policy URL, a content rating
-questionnaire, and the data safety form. Track Exploder processes audio locally
-and doesn't collect or transmit user data, which makes the data safety form
-short but still mandatory.
+feature graphic, description), a content rating questionnaire, a privacy policy
+URL, and the data safety form.
+
+**Privacy policy URL:** <https://github.com/Safrone/track-exploder/blob/main/PRIVACY.md>
+
+**Data safety form.** The answers have to match `PRIVACY.md`, and for this app
+they're all the same answer:
+
+- *Does your app collect or share any of the required user data types?* — **No.**
+  There is no network code in the app at all: no analytics, no crash reporting,
+  no ads, no third-party SDKs, and no HTTP client in the Rust dependency tree.
+  Audio is decoded, mixed and exported entirely on device.
+- *Is all of the user data encrypted in transit?* — not applicable, nothing is
+  transmitted.
+- *Do you provide a way for users to request that their data be deleted?* — not
+  applicable, nothing is collected. Uninstalling removes the app's cache and its
+  locally stored presets and recent-export list.
+
+The app declares the Android `INTERNET` permission because Tauri's template adds
+it, not because the app uses it. That's disclosed in `PRIVACY.md`; Play's data
+safety form asks about data practices rather than permissions, so it doesn't
+change any answer above.
