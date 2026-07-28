@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Inject a release signing config into Tauri's generated Android Gradle build.
 
+Used by both Android workflows: the sideload APK cut in `release.yml` and the
+Play Store AAB cut in `android-aab.yml`. They differ only in which keystore
+`keystore.properties` points at.
+
 `tauri android init` scaffolds `app/build.gradle.kts` fresh on every CI run (the
 `gen/` tree is git-ignored), and its release build type ships with *no* signing
-config — so a release APK would be unsigned and un-installable. This adds a
+config — so a release build would be unsigned and rejected. This adds a
 `signingConfigs.release` that reads `keystore.properties`, points the release
 build type at it, and disables R8/minification (the size win comes from the
 stripped native library, not from shrinking the small Kotlin layer, and leaving
@@ -21,6 +25,10 @@ GRADLE = "src-tauri/gen/android/app/build.gradle.kts"
 # the JDK package, so `java.util.Properties` / `java.io.File` don't compile. Use
 # the imported `Properties` and Gradle's `rootProject.file(...)` instead. The
 # `!!` asserts non-null (getProperty is nullable; the signing setters aren't).
+#
+# `storePassword`/`keyPassword` fall back to a single `password` key: the debug
+# keystore used for the sideload APK shares one password, while a real Play
+# upload keystore usually has separate store and key passwords.
 SIGNING_CONFIG = """
     signingConfigs {
         create("release") {
@@ -28,9 +36,9 @@ SIGNING_CONFIG = """
             val f = rootProject.file("keystore.properties")
             if (f.exists()) f.inputStream().use { props.load(it) }
             storeFile = rootProject.file(props.getProperty("storeFile")!!)
-            storePassword = props.getProperty("password")!!
+            storePassword = props.getProperty("storePassword") ?: props.getProperty("password")!!
             keyAlias = props.getProperty("keyAlias")!!
-            keyPassword = props.getProperty("password")!!
+            keyPassword = props.getProperty("keyPassword") ?: props.getProperty("password")!!
         }
     }
 """

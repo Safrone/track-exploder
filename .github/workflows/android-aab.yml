@@ -1,0 +1,163 @@
+# Builds the Android App Bundle for a Google Play submission.
+#
+# Deliberately separate from `release.yml`, and manual-only:
+#
+#   * An AAB isn't installable — it's an upload container only Play Console
+#     consumes — so it has no business as a public release asset. It's published
+#     as a workflow artifact instead (Actions tab → this run → Artifacts).
+#   * Play submissions are manual and infrequent, so there's no reason to spend
+#     the Android build on every tag.
+#   * It keeps the upload keystore secrets reachable from this workflow alone.
+#
+# The APK in `release.yml` is signed with the Android *debug* key and is not
+# interchangeable with what this produces. Play rejects debug-signed uploads, so
+# this uses a real upload keystore — see docs/android-play-release.md.
+name: Android AAB (Google Play)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "versionCode override (blank = derive from the app version). Only needed to re-upload after a Play rejection."
+        required: false
+        type: string
+
+concurrency:
+  group: android-aab
+  cancel-in-progress: false
+
+jobs:
+  aab:
+    name: Android AAB (arm64 + x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      # Play splits the bundle per ABI at install time, so shipping x86_64
+      # alongside arm64 costs users nothing and covers Chromebooks and emulators.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      # Gradle downloads the Android Gradle Plugin, Kotlin toolchain and its whole
+      # dependency tree on a cold run; caching ~/.gradle keeps that off the clock.
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      # The NDK is a ~1 GB download; cache it so only the first run pays for it.
+      - name: Cache Android NDK
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+          key: android-ndk-27.2.12479018
+      - name: Install NDK
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - run: npm ci
+      - name: Initialize Android project & apply app icons
+        run: |
+          npm run tauri android init
+          # `android init` scaffolds Tauri's default launcher icon; overwrite the
+          # generated res with our committed app icons so the bundle uses our logo.
+          dest=src-tauri/gen/android/app/src/main/res
+          cp -rf src-tauri/icons/android/mipmap-* "$dest/"
+          cp -f src-tauri/icons/android/values/ic_launcher_background.xml "$dest/values/"
+      # The generated release build type has no signing config; inject one that
+      # reads the upload keystore. Play still re-signs with its own app signing
+      # key on their side — this key only proves the upload is from us.
+      - name: Configure upload signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          # Optional: a PKCS12 keystore (keytool's default since JDK 9) can't hold
+          # a key password separate from the store password, so this is only set
+          # for a legacy JKS-format store.
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -eu
+          for v in KEYSTORE_BASE64 KEY_ALIAS STORE_PASSWORD; do
+            eval "val=\${$v:-}"
+            if [ -z "$val" ]; then
+              echo "::error::ANDROID_UPLOAD_$v is not set; see docs/android-play-release.md" >&2
+              exit 1
+            fi
+          done
+          ks="$RUNNER_TEMP/upload.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ks"
+          {
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyPassword=${KEY_PASSWORD:-$STORE_PASSWORD}"
+            echo "storeFile=$ks"
+          } > src-tauri/gen/android/keystore.properties
+          python3 .github/scripts/patch-android-signing.py
+      # No --split-per-abi: Play wants one bundle carrying every ABI and does the
+      # per-device splitting itself.
+      - name: Build AAB (release, with MP3)
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          set -eu
+          args=(--aab --target aarch64 x86_64 --features mp3)
+          if [ -n "${VERSION_CODE:-}" ]; then
+            # Tauri derives versionCode from the app version; this overrides it
+            # for the case where Play already has that number and rejects a re-upload.
+            args+=(-c "{\"bundle\":{\"android\":{\"versionCode\":$VERSION_CODE}}}")
+          fi
+          npm run tauri android build -- "${args[@]}"
+      - name: Verify and name the bundle
+        id: bundle
+        run: |
+          set -eu
+          aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*release*.aab' -print -quit)
+          if [ -z "$aab" ]; then
+            echo "::error::No release AAB was produced" >&2
+            find src-tauri/gen/android -name '*.aab' || true
+            exit 1
+          fi
+          # An AAB is jar-signed, so keytool can read the signer back. Fail loudly
+          # on the debug cert: Play rejects it, and better to catch a swapped
+          # secret here than after a failed upload.
+          certs=$(keytool -printcert -jarfile "$aab")
+          echo "$certs"
+          if [ -z "$certs" ]; then
+            echo "::error::The AAB is unsigned" >&2
+            exit 1
+          fi
+          if echo "$certs" | grep -q "CN=Android Debug"; then
+            echo "::error::The AAB is signed with the Android debug key; Play will reject it" >&2
+            exit 1
+          fi
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          code=$(grep '^tauri.android.versionCode=' src-tauri/gen/android/app/tauri.properties | cut -d= -f2)
+          dest="$RUNNER_TEMP/Track-Exploder_${version}_${code}.aab"
+          cp "$aab" "$dest"
+          ls -lh "$dest"
+          echo "path=$dest" >> "$GITHUB_OUTPUT"
+      # archive: false uploads the .aab as-is rather than wrapping it in a zip,
+      # so the download can go straight to Play Console.
+      - name: Upload the bundle as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.bundle.outputs.path }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 90

@@ -33,3 +33,8 @@ Thumbs.db
 
 # Release signing key (public key; distributed as a release asset, not in-tree)
 /track-exploder-signing-key.asc
+
+# Android upload keystore — private, lives in CI secrets only.
+# See docs/android-play-release.md
+*.jks
+*.keystore
