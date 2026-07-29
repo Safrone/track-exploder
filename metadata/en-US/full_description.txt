@@ -1,0 +1,21 @@
+Track Exploder turns part-predominant barbershop learning tracks into the practice mix you need.
+
+Load the tenor, lead, baritone, and bass files for a song. The app extracts the isolated voice from each stereo track, aligns the parts automatically, and gives you a four-part mixer.
+
+Use Track Exploder to:
+
+<ul>
+<li>solo your part or leave it out to sing against the other voices</li>
+<li>adjust each part's level, stereo position, channel, mute, and inclusion</li>
+<li>preview the mix with per-part waveforms</li>
+<li>slow practice audio to 0.5× without changing its pitch</li>
+<li>save reusable mix presets</li>
+<li>export one mix or generate several mixes in bulk</li>
+<li>write WAV and FLAC files while preserving shared source tags</li>
+</ul>
+
+Publishers do not always place the song at exactly the same point in every part file. Track Exploder measures the set and corrects those offsets automatically while keeping spoken introductions and pitch pipes together. Each part's adjustment remains visible and can be fine-tuned manually.
+
+All audio processing happens on your device. Track Exploder has no accounts, advertising, analytics, tracking, or servers, and it does not upload your music.
+
+Track Exploder is free and open-source software released under the MIT License.
