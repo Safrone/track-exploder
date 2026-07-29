@@ -155,7 +155,7 @@ jobs:
           echo "native debug symbols present ($syms entries)"
           # When AGP can't find the NDK it neither extracts symbols nor strips,
           # and ships cargo's unstripped library at ~2x the size.
-          unzip -q -o "$aab" 'base/lib/*/libtrack_exploder_lib.so' -d "$RUNNER_TEMP/aabcheck"
+          unzip -q -o "$aab" 'base/lib/*/*.so' -d "$RUNNER_TEMP/aabcheck"
           for so in "$RUNNER_TEMP"/aabcheck/base/lib/*/libtrack_exploder_lib.so; do
             desc=$(file -b "$so")
             echo "$(basename "$(dirname "$so")"): $(stat -c%s "$so") bytes — $desc"
@@ -165,6 +165,19 @@ jobs:
                 exit 1
                 ;;
             esac
+          done
+          # A library whose LOAD segments sit on 4 KB boundaries can't be loaded
+          # on an Android 15 device running 16 KB pages, and Play reports the
+          # bundle as not supporting them. Cargo links ours; see .cargo/config.toml.
+          echo "--- 16 KB page alignment ---"
+          for so in "$RUNNER_TEMP"/aabcheck/base/lib/*/*.so; do
+            for align in $(readelf -lW "$so" | awk '$1 == "LOAD" { print $NF }'); do
+              if [ "$((align))" -lt 16384 ]; then
+                echo "::error::$so has a LOAD segment aligned to $align; 16 KB page devices can't load it" >&2
+                exit 1
+              fi
+            done
+            echo "$(basename "$(dirname "$so")")/$(basename "$so"): 16 KB aligned"
           done
       # archive: false uploads the .aab as-is rather than wrapping it in a zip,
       # so the download can go straight to Play Console.

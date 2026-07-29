@@ -102,6 +102,21 @@ If it ever regresses and the build fix isn't obvious, Play Console accepts a
 native debug symbols ZIP per artifact as a fallback: `llvm-objcopy --strip-debug`
 each cargo `.so` into `<abi>/libtrack_exploder_lib.so.sym` and zip the ABI dirs.
 
+**"Does not support 16 KB memory page size"** means a packaged library has LOAD
+segments on 4 KB boundaries, so it can't be mapped on an Android 15 device using
+16 KB pages. AGP aligns the libraries inside the bundle, but the alignment inside
+the ELF comes from the linker, and cargo drives that itself — NDK r27's clang
+still defaults to 4 KB there. `.cargo/config.toml` passes
+`-Wl,-z,max-page-size=16384` for both Android targets, and the workflow checks
+every `.so` in the finished bundle.
+
+## Bundle size and R8
+
+**App optimization** in Play's bundle report reads *Low* by design: R8 is off, so
+the shrinking, obfuscation and optimization percentages stay empty. See the
+deobfuscation-file note above for why. The *"Upgrade to AGP version 9.0"* advice
+isn't ours to take — the AGP version comes from Tauri's Android template.
+
 ## Play Console checklist
 
 Code isn't the whole submission. You'll also need a store listing (screenshots,
