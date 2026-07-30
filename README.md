@@ -52,8 +52,11 @@ cargo run --release -p audio-core --example check_alignment -- "/path/to/album f
 
 ## Installing
 
-Prebuilt installers are attached to each [release](../../releases).
+<a href="https://f-droid.org/packages/com.safrone.trackexploder/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80" /></a>
 
+Prebuilt installers for every other platform are attached to each [release](../../releases).
+
+- **Android:** F-Droid builds from source and signs with its own key, so it can't update over a sideloaded APK from a release (or over a Play install) — uninstall first, or stick to one source.
 - **macOS / Windows** builds are unsigned, so you'll see a Gatekeeper / SmartScreen prompt. On macOS, right-click the app → **Open**; on Windows, **More info → Run anyway**.
 - **Linux RPM** is GPG-signed. Import the signing key once (attached to the release as `track-exploder-signing-key.asc`), then install:
 
