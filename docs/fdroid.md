@@ -12,13 +12,15 @@ release reaches users only once that recipe points at a tag.
 1. **A tag.** The recipe's `commit:` is a tag name (`v1.1.10`), not a branch.
 2. **`bundle.android.versionCode` bumped** in `src-tauri/tauri.conf.json` — see
    below.
-3. **A changelog entry** at `metadata/en-US/changelogs/<versionCode>.txt`, e.g.
-   `metadata/en-US/changelogs/1001010.txt`. F-Droid shows this on the app page.
+3. **A changelog entry** at
+   `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, e.g.
+   `.../changelogs/1001012.txt`. F-Droid shows this on the app page.
 
 The store listing (title, descriptions, icon, screenshots) is read from
-`metadata/en-US/` in this repo, not from the recipe. `metadata/<locale>/` at the
-repo root is one of the four layouts F-Droid scans, alongside the more common
-`fastlane/metadata/android/<locale>/`; either works.
+`fastlane/metadata/android/en-US/` in this repo, not from the recipe. F-Droid
+also scans a bare `metadata/<locale>/` at the repo root, but the fastlane path
+is what its maintainers expect — keep the listing here and out of the recipe,
+which should carry nothing but build metadata.
 
 ## Why versionCode is pinned rather than derived
 
