@@ -62,11 +62,17 @@ want to ship. The bundle lands under the run's **Artifacts** as
 `Track-Exploder_<version>_<versionCode>.aab`; download it and upload it in Play
 Console.
 
-`versionCode` is derived from the app version in `src-tauri/tauri.conf.json`
-(`major * 1000000 + minor * 1000 + patch`), so it increases on its own as long
-as you bump the version. The workflow's optional `versionCode` input exists for
-the one case that breaks: re-uploading after Play has already accepted that
-number, where Play demands a higher one but the app version hasn't changed.
+`versionCode` is set explicitly as `bundle.android.versionCode` in
+`src-tauri/tauri.conf.json`, so **bump it whenever you bump the app version**.
+Keep it equal to the value Tauri would otherwise derive,
+`major * 1000000 + minor * 1000 + patch` — `src/lib/version.test.ts` fails the
+build if the two drift apart. It is pinned rather than derived because F-Droid's
+`checkupdates` reads the versionCode straight out of the source tree to spot new
+releases, and it needs a literal integer; see `docs/fdroid.md`.
+
+The workflow's optional `versionCode` input exists for the one case the rule
+above breaks: re-uploading after Play has already accepted that number, where
+Play demands a higher one but the app version hasn't changed.
 
 ## Upload warnings
 
