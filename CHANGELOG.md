@@ -5,6 +5,27 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.12] - 2026-07-30
+
+Nothing changes in the app itself. This release carries the metadata F-Droid
+needs to build Track Exploder from source and notice future releases.
+
+### Added
+
+- **Store listing metadata** under `metadata/en-US/` — title, descriptions, icon
+  and a screenshot for the F-Droid app page.
+- **`docs/fdroid.md`**, covering what a release has to carry for F-Droid and the
+  parts of the build recipe that are easy to get wrong.
+
+### Changed
+
+- **The Android `versionCode` is now pinned** in `src-tauri/tauri.conf.json`
+  rather than derived from the app version during the build. F-Droid's update
+  check reads the versionCode out of the source tree, which it cannot do for a
+  number that only exists once an Android build has run. The value still matches
+  what Tauri derived, and a test keeps the two from drifting apart — but it now
+  has to be bumped by hand alongside the version.
+
 ## [1.1.10] - 2026-07-28
 
 ### Fixed

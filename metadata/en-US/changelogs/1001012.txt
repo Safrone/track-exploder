@@ -1,0 +1,1 @@
+Packaging only — no changes to the app. Adds the listing and version metadata F-Droid needs to build Track Exploder from source.
