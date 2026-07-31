@@ -131,22 +131,49 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    defaults:
+      run:
+        # Not the checkout directory: Tauri bakes $CARGO_MANIFEST_DIR into the
+        # binary, so this APK is only reproducible if it is compiled from the
+        # same absolute path F-Droid's buildserver compiles it from. See the
+        # copy step below and docs/fdroid.md.
+        working-directory: /home/vagrant/build/com.safrone.trackexploder
     steps:
       - uses: actions/checkout@v5
+      - name: Stage the checkout at F-Droid's build path
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -eu
+          dest=/home/vagrant/build/com.safrone.trackexploder
+          sudo mkdir -p "$(dirname "$dest")"
+          sudo cp -a "$GITHUB_WORKSPACE" "$dest"
+          sudo chown -R "$(id -un):$(id -gn)" /home/vagrant
+      # Every toolchain below is pinned to what F-Droid's buildserver provides.
+      # This APK has to come out byte-identical to the one F-Droid builds from
+      # source, or it loses reproducible-build status. See docs/fdroid.md.
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: dtolnay/rust-toolchain@stable
+      # The toolchain itself comes from rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.97.0
           targets: aarch64-linux-android
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "./src-tauri -> target"
+      # No rust-cache here: the build runs outside the workspace it keys on, and
+      # a release pays the cold-build cost once.
+      # signalsmith-stretch runs bindgen in its build script, against the host
+      # libclang. Debian trixie ships LLVM 19; a different version can emit
+      # different bindings from the same headers.
+      - name: Pin libclang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-19-dev
+          echo "LIBCLANG_PATH=/usr/lib/llvm-19/lib" >> "$GITHUB_ENV"
       # Gradle downloads the Android Gradle Plugin, Kotlin toolchain and its whole
       # dependency tree on a cold run; caching ~/.gradle keeps that off the clock.
       - name: Cache Gradle
@@ -182,23 +209,34 @@ jobs:
       # our keystore. Same key across releases, so updates install in place.
       - name: Configure release signing
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_SIDELOAD_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_SIDELOAD_KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_SIDELOAD_STORE_PASSWORD }}
         run: |
           set -eu
-          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
-            echo "::error::ANDROID_DEBUG_KEYSTORE_BASE64 is not set; a release APK cannot be signed." >&2
-            exit 1
-          fi
-          ks="$RUNNER_TEMP/release.keystore"
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ks"
+          for v in KEYSTORE_BASE64 KEY_ALIAS STORE_PASSWORD; do
+            eval "val=\${$v:-}"
+            if [ -z "$val" ]; then
+              echo "::error::ANDROID_SIDELOAD_$v is not set; see docs/fdroid.md" >&2
+              exit 1
+            fi
+          done
+          ks="$RUNNER_TEMP/sideload.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ks"
+          # PKCS12 has one password for both the store and the key; the injected
+          # Gradle config falls back to `password` for each.
           {
-            echo "keyAlias=androiddebugkey"
-            echo "password=android"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "password=$STORE_PASSWORD"
             echo "storeFile=$ks"
           } > src-tauri/gen/android/keystore.properties
           python3 .github/scripts/patch-android-signing.py
       - name: Build Android APK (arm64, release, with MP3)
-        run: npm run tauri android build -- --apk --target aarch64 --features mp3
+        run: |
+          set -eu
+          RUSTFLAGS=$(.github/scripts/android-release-rustflags.sh)
+          export RUSTFLAGS
+          npm run tauri android build -- --apk --target aarch64 --features mp3
       - name: Attach APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -213,7 +251,15 @@ jobs:
           # Verify it's actually signed, so a mis-applied config fails the release
           # rather than shipping an un-installable APK.
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$apksigner" verify --print-certs "$apk"
+          certs=$("$apksigner" verify --print-certs "$apk")
+          echo "$certs"
+          # A debug cert means the wrong secret: this key is the app's permanent
+          # identity for sideload and F-Droid users, and can never be rotated
+          # without everyone uninstalling.
+          if echo "$certs" | grep -q "CN=Android Debug"; then
+            echo "::error::The APK is signed with an Android debug key, not the sideload release key" >&2
+            exit 1
+          fi
           dest="Track-Exploder_${GITHUB_REF_NAME}_android-arm64.apk"
           cp "$apk" "$dest"
           ls -lh "$dest"

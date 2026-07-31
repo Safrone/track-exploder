@@ -2,6 +2,10 @@
 # native libraries to load there. NDK r27's clang still links ELF segments at
 # 4 KB unless asked, and cargo drives that linker itself, so the alignment has
 # to be requested here rather than from Gradle.
+#
+# Release builds set RUSTFLAGS, which REPLACES everything below rather than
+# adding to it. .github/scripts/android-release-rustflags.sh repeats this flag
+# for that reason; a change here needs the same change there.
 [target.aarch64-linux-android]
 rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
 

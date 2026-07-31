@@ -1,9 +1,11 @@
 # Releasing to Google Play
 
-The GitHub release attaches a **sideload APK** signed with the Android debug
-key. Play rejects debug-signed uploads, so the Play build is a separate,
-manually-triggered workflow (`.github/workflows/android-aab.yml`) using its own
-upload keystore.
+The GitHub release attaches a **sideload APK** signed with its own release
+keystore (see [fdroid.md](fdroid.md#the-sideload-signing-key)). Play requires a
+key it has registered for this app, so the Play build is a separate,
+manually-triggered workflow (`.github/workflows/android-aab.yml`) using the
+upload keystore. Three keys are in play overall — upload, sideload, and
+F-Droid's — and none of them can be swapped later without users reinstalling.
 
 ## Before the first submission
 

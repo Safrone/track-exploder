@@ -49,6 +49,78 @@ The cost is that the versionCode no longer follows the app version on its own.
 Keep it equal to Tauri's formula so Play's accepted-versionCode history stays
 consistent; `src/lib/version.test.ts` fails if the two drift.
 
+## The sideload signing key
+
+`release.yml` signs the GitHub release APK with a dedicated keystore, held in
+three repository secrets: `ANDROID_SIDELOAD_KEYSTORE_BASE64`,
+`ANDROID_SIDELOAD_KEY_ALIAS` and `ANDROID_SIDELOAD_STORE_PASSWORD`. It is a
+different key from the Play upload keystore, and both differ from F-Droid's.
+
+**This key can never be rotated.** Android identifies an app by its signature, so
+a new key means every sideload and F-Droid user has to uninstall and lose their
+data. Under reproducible builds it is also the key F-Droid republishes under, so
+it is a permanent public identity. Back the keystore and its password up
+wherever the Play upload keystore lives; `.gitignore` covers `*.keystore` and
+`*.jks`, and neither is in the repo.
+
+It replaced the Android debug keystore in 1.1.13. The debug key worked — it is
+generated per machine, not a shared secret — but the SDK treats that file as
+disposable and regenerates it silently, which is a poor foundation for a key
+that has to outlive the project.
+
+## Reproducible builds
+
+F-Droid can verify that its from-source build matches the APK attached to the
+GitHub release, and then distribute *our* signed binary instead of one signed
+with F-Droid's key. That is what `Binaries:` in the recipe requests, and it is
+what lets a user move between the GitHub APK and F-Droid without uninstalling.
+
+It only works if the two builds agree byte for byte, which is why so much is
+pinned. Anything that differs between our runner and F-Droid's buildserver has
+to be nailed down in both places:
+
+| Pinned | Where |
+| --- | --- |
+| Rust 1.97.0 | `rust-toolchain.toml`, and `rustup default` in the recipe |
+| Tauri CLI 2.11.4 | `package-lock.json`, and `cargo install` in the recipe |
+| NDK 27.2.12479018 | `patch-android-signing.py`, workflows, `ndk: r27c` |
+| JDK 17, Node 20 | `release.yml`, and `JAVA_HOME` in the recipe |
+| libclang 19 | `LIBCLANG_PATH` in both — bindgen's output depends on it |
+| RUSTFLAGS | `.github/scripts/android-release-rustflags.sh`, run by both |
+
+The Gradle side matters too: `tauri android init` scaffolds a release build type
+with R8 **on** and no `ndkVersion`, which leaves AGP unable to strip the native
+library. Our workflows fix both via `patch-android-signing.py`, so the recipe
+runs the same script with `--no-signing` — without it F-Droid would ship a
+differently-optimised, unstripped APK, quite apart from reproducibility.
+
+### Why the release job builds from /home/vagrant/build/…
+
+Tauri's `generate_context!` reads `$CARGO_MANIFEST_DIR` at compile time and
+bakes the absolute path into the binary (`tauri-macros/src/context.rs`). That is
+an environment variable's value rather than a source span, so
+`--remap-path-prefix` cannot reach it — it was the single remaining
+environment-specific string in an otherwise clean library.
+
+Rather than have F-Droid build somewhere unusual, `release.yml` copies the
+checkout to `/home/vagrant/build/com.safrone.trackexploder`, which is where the
+F-Droid buildserver puts it, and compiles there. The recipe needs nothing
+special, and the baked path matches.
+
+Measured on 1.1.12, cross-compiling `libtrack_exploder_lib.so` for
+`aarch64-linux-android`:
+
+* before the remap — 299 absolute registry paths in `.rodata`
+* after — 447 paths rewritten to `/cargo-registry/…`, one leak left, the
+  `CARGO_MANIFEST_DIR` string
+* two independent cold builds from the same fixed path — byte-identical
+  (`sha256 6ac9c3b9…`)
+
+If the buildserver's layout ever changes, that copy step is the thing to update.
+
+Verifying a match needs a real `fdroid build` followed by `fdroid verify`; there
+is no shortcut, and the first attempt on any new release is worth checking.
+
 ## Notes on the build recipe
 
 The recipe is a fully custom build — F-Droid has no Tauri template, so it drives

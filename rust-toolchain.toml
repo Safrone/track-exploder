@@ -1,0 +1,6 @@
+# Pinned so F-Droid's from-source build produces the same bytes as the release
+# APK; a compiler change is a reproducibility break. See docs/fdroid.md.
+[toolchain]
+channel = "1.97.0"
+profile = "minimal"
+targets = ["aarch64-linux-android"]
