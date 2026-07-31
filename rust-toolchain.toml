@@ -3,4 +3,7 @@
 [toolchain]
 channel = "1.97.0"
 profile = "minimal"
+# CONTRIBUTING tells contributors to run cargo fmt and clippy; a minimal profile
+# ships neither, and pinning the channel means the CI action can't supply them.
+components = ["rustfmt", "clippy"]
 targets = ["aarch64-linux-android"]

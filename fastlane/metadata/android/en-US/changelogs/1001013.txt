@@ -1,0 +1,1 @@
+No changes to the app. Android builds are now reproducible, so F-Droid can verify this app was built from the source published here.

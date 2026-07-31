@@ -5,6 +5,23 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.13] - 2026-07-30
+
+The app itself is unchanged. This release is about how the Android builds are
+signed and verified.
+
+### Changed
+
+- **The sideload APK on the GitHub release is signed with a new key.** It
+  previously used an Android debug keystore, which the SDK treats as a
+  disposable file — not something to hang an app's permanent identity on. If you
+  installed the 1.1.12 APK, Android will refuse to update over it; uninstall
+  first. Play installs are unaffected, and use a different key again.
+- **Android builds are now reproducible**, so F-Droid can verify that what it
+  builds from source matches the APK published here and distribute that same
+  signed binary. In practice this means you can move between the GitHub APK and
+  F-Droid without uninstalling. See `docs/fdroid.md`.
+
 ## [1.1.12] - 2026-07-30
 
 Nothing changes in the app itself. This release carries the metadata F-Droid
