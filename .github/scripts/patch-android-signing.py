@@ -9,6 +9,10 @@ unsigned. This adds one, pins `ndkVersion` (left unset by the template, which
 stops AGP stripping native libraries and extracting their debug symbols), and
 turns off R8. See docs/android-play-release.md for the R8 trade-off.
 
+`--no-signing` applies everything except the signing config, for builders that
+sign the APK themselves — F-Droid does, and its build has to match ours byte for
+byte to stay reproducible, so it needs the same ndkVersion pin and R8 setting.
+
 Anchored on structural tokens from the template; if it changes shape the script
 fails rather than emitting a broken build file.
 """
@@ -94,6 +98,7 @@ def check_ndk() -> None:
 
 def main() -> None:
     debug_symbols = "--debug-symbols" in sys.argv[1:]
+    no_signing = "--no-signing" in sys.argv[1:]
     check_ndk()
 
     with open(GRADLE) as fh:
@@ -110,15 +115,18 @@ def main() -> None:
     if "ndkVersion" in src:
         fail("the template now sets ndkVersion itself; reconcile with NDK_VERSION")
     at = src.index(anchor) + len(anchor)
-    src = src[:at] + NDK_PIN + SIGNING_CONFIG + src[at:]
+    src = src[:at] + NDK_PIN + ("" if no_signing else SIGNING_CONFIG) + src[at:]
 
     release = 'getByName("release") {'
     if release not in src:
         fail("could not find the release build type")
-    injected = '\n            signingConfig = signingConfigs.getByName("release")'
+    injected = ""
+    if not no_signing:
+        injected += '\n            signingConfig = signingConfigs.getByName("release")'
     if debug_symbols:
         injected += DEBUG_SYMBOLS
-    src = src.replace(release, release + injected, 1)
+    if injected:
+        src = src.replace(release, release + injected, 1)
 
     if "isMinifyEnabled = true" not in src:
         fail("release build type no longer sets isMinifyEnabled = true")
@@ -128,7 +136,7 @@ def main() -> None:
 
     with open(GRADLE, "w") as fh:
         fh.write(src)
-    what = f"release signing (NDK {NDK_VERSION})"
+    what = f"NDK {NDK_VERSION}" if no_signing else f"release signing (NDK {NDK_VERSION})"
     if debug_symbols:
         what += " + native debug symbols"
     print("patched", GRADLE, "for", what)
