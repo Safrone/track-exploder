@@ -6,4 +6,7 @@ profile = "minimal"
 # CONTRIBUTING tells contributors to run cargo fmt and clippy; a minimal profile
 # ships neither, and pinning the channel means the CI action can't supply them.
 components = ["rustfmt", "clippy"]
-targets = ["aarch64-linux-android"]
+# Pinning the channel means a workflow's own `targets:` input no longer applies —
+# it installs them for whatever `stable` resolves to, not for the toolchain cargo
+# ends up using. Every target the project cross-compiles for has to be listed here.
+targets = ["aarch64-linux-android", "aarch64-apple-darwin", "x86_64-apple-darwin"]
