@@ -6,12 +6,13 @@ Used by both Android workflows, which differ only in which keystore
 `app/build.gradle.kts` fresh on every CI run (the `gen/` tree is git-ignored) and
 its release build type has no signing config, so a release build would be
 unsigned. This adds one, pins `ndkVersion` (left unset by the template, which
-stops AGP stripping native libraries and extracting their debug symbols), and
-turns off R8. See docs/android-play-release.md for the R8 trade-off.
+stops AGP stripping native libraries and extracting their debug symbols), turns
+off R8, and keeps AGP's dependency-metadata block out of the APK. See
+docs/android-play-release.md for the R8 trade-off.
 
 `--no-signing` applies everything except the signing config, for builders that
 sign the APK themselves — F-Droid does, and its build has to match ours byte for
-byte to stay reproducible, so it needs the same ndkVersion pin and R8 setting.
+byte to stay reproducible, so it needs every other change here too.
 
 Anchored on structural tokens from the template; if it changes shape the script
 fails rather than emitting a broken build file.
@@ -46,6 +47,17 @@ NDK_VERSION = "27.2.12479018"
 
 NDK_PIN = f"""
     ndkVersion = "{NDK_VERSION}"
+"""
+
+# AGP appends a "Dependency metadata" block to the APK signing block: a
+# Google-encrypted blob listing every dependency, for Play Console. F-Droid's
+# scanner rejects any extra signing block it does not recognise, so an APK
+# carrying one cannot be published there at all. Bundles keep theirs — the
+# bundle is what Play consumes, and that is the only place it is read.
+DEPENDENCY_INFO = """
+    dependenciesInfo {
+        includeInApk = false
+    }
 """
 
 # SYMBOL_TABLE rather than FULL: function names are enough to read a native stack
@@ -114,8 +126,16 @@ def main() -> None:
     # A template-set ndkVersion would come after ours and win silently.
     if "ndkVersion" in src:
         fail("the template now sets ndkVersion itself; reconcile with NDK_VERSION")
+    if "dependenciesInfo" in src:
+        fail("the template now sets dependenciesInfo itself; reconcile with ours")
     at = src.index(anchor) + len(anchor)
-    src = src[:at] + NDK_PIN + ("" if no_signing else SIGNING_CONFIG) + src[at:]
+    src = (
+        src[:at]
+        + NDK_PIN
+        + DEPENDENCY_INFO
+        + ("" if no_signing else SIGNING_CONFIG)
+        + src[at:]
+    )
 
     release = 'getByName("release") {'
     if release not in src:

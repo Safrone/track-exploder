@@ -101,6 +101,18 @@ library. Our workflows fix both via `patch-android-signing.py`, so the recipe
 runs the same script with `--no-signing` — without it F-Droid would ship a
 differently-optimised, unstripped APK, quite apart from reproducibility.
 
+### The dependency-metadata block
+
+AGP appends a "Dependency metadata" entry to the APK signing block: a blob
+listing the app's dependencies, encrypted to a Google key, for Play Console's
+vulnerability warnings. F-Droid's scanner rejects *any* signing block it does
+not recognise, and it scans the binary named by `Binaries:` — so an APK carrying
+one fails the pipeline outright, with the build itself perfectly fine.
+
+`patch-android-signing.py` turns it off with `dependenciesInfo { includeInApk =
+false }`. `includeInBundle` is deliberately left alone: the bundle goes to Play,
+which is the only consumer that reads it.
+
 ### Why the release job builds from /home/vagrant/build/…
 
 Tauri's `generate_context!` reads `$CARGO_MANIFEST_DIR` at compile time and

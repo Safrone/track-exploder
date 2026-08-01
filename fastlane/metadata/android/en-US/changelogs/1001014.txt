@@ -1,0 +1,1 @@
+No changes to the app. The APK no longer carries Google's dependency-metadata block, which F-Droid does not accept.

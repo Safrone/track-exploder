@@ -5,6 +5,18 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.14] - 2026-08-01
+
+The app itself is unchanged.
+
+### Changed
+
+- **The Android APK no longer carries a dependency-metadata block.** The Android
+  Gradle plugin appends an encrypted list of the app's dependencies to every APK
+  for Google Play's benefit. F-Droid rejects any APK with an unrecognised block
+  in its signing block, so it is now switched off for APKs. The Play bundle
+  keeps it — that is the only build where anything reads it.
+
 ## [1.1.13] - 2026-07-30
 
 The app itself is unchanged. This release is about how the Android builds are
@@ -184,6 +196,8 @@ needs to build Track Exploder from source and notice future releases.
   files, plus save-able export presets and bulk export.
 - Desktop and Android builds (Tauri v2).
 
+[1.1.14]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.14
+[1.1.13]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.13
 [1.1.10]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.10
 [1.1.9]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.9
 [1.1.5]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.5
