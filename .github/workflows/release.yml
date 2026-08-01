@@ -155,10 +155,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # 21, not 17: the buildserver installs default-jdk-headless and switches to
+      # the highest JDK present, and Debian trixie has no openjdk-17 to pin it to.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       # The toolchain itself comes from rust-toolchain.toml.
       - uses: dtolnay/rust-toolchain@master
         with:

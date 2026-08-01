@@ -84,9 +84,16 @@ to be nailed down in both places:
 | Rust 1.97.0 | `rust-toolchain.toml`, and `rustup default` in the recipe |
 | Tauri CLI 2.11.4 | `package-lock.json`, and `cargo install` in the recipe |
 | NDK 27.2.12479018 | `patch-android-signing.py`, workflows, `ndk: r27c` |
-| JDK 17, Node 20 | `release.yml`, and `JAVA_HOME` in the recipe |
+| JDK 21, Node 20 | `release.yml`, and `JAVA_HOME` in the recipe |
 | libclang 19 | `LIBCLANG_PATH` in both — bindgen's output depends on it |
 | RUSTFLAGS | `.github/scripts/android-release-rustflags.sh`, run by both |
+
+The JDK is the one pin we don't get to choose. `buildserver-trixie` installs
+`default-jdk-headless` and then switches to the highest JDK present, and Debian
+trixie has no openjdk-17 package at all, so 21 is the only version both sides can
+agree on. The recipe installs `openjdk-21-jdk-headless` explicitly rather than
+relying on it arriving via `default-jdk`, so a future image bumping its default
+doesn't silently change the compiler.
 
 The Gradle side matters too: `tauri android init` scaffolds a release build type
 with R8 **on** and no `ndkVersion`, which leaves AGP unable to strip the native

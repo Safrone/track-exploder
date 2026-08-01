@@ -103,10 +103,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Matches the release job, so this is a canary for the JDK the reproducible
+      # Android build actually uses.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
