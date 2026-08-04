@@ -5,7 +5,7 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.15] - 2026-08-04
 
 ### Changed
 
@@ -206,6 +206,7 @@ needs to build Track Exploder from source and notice future releases.
   files, plus save-able export presets and bulk export.
 - Desktop and Android builds (Tauri v2).
 
+[1.1.15]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.15
 [1.1.14]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.14
 [1.1.13]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.13
 [1.1.10]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.10

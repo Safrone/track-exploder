@@ -1,0 +1,1 @@
+No changes to the app. It no longer requests the Internet permission — Track Exploder does all its work on your device, and now says so.
