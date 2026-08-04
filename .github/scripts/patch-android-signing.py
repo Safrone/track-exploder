@@ -7,8 +7,8 @@ Used by both Android workflows, which differ only in which keystore
 its release build type has no signing config, so a release build would be
 unsigned. This adds one, pins `ndkVersion` (left unset by the template, which
 stops AGP stripping native libraries and extracting their debug symbols), turns
-off R8, and keeps AGP's dependency-metadata block out of the APK. See
-docs/android-play-release.md for the R8 trade-off.
+off R8, keeps AGP's dependency-metadata block out of the APK, and drops the
+INTERNET permission. See docs/android-play-release.md for the R8 trade-off.
 
 `--no-signing` applies everything except the signing config, for builders that
 sign the APK themselves — F-Droid does, and its build has to match ours byte for
@@ -22,6 +22,17 @@ import os
 import sys
 
 GRADLE = "src-tauri/gen/android/app/build.gradle.kts"
+MANIFEST = "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+
+# The template requests INTERNET unconditionally, because `tauri android dev`
+# loads the frontend from a dev server over the network. A packaged build does
+# not: every request goes through RustWebViewClient.shouldInterceptRequest and is
+# answered from assets inside the APK, and the app has no HTTP client, no
+# updater, and a CSP with no external origins. Opening the Ko-fi link hands a URL
+# to the system browser, which does its own networking under its own permission.
+INTERNET_PERMISSION = (
+    '    <uses-permission android:name="android.permission.INTERNET" />\n'
+)
 
 # In a Gradle Kotlin script `java` resolves to the Gradle extension, not the JDK
 # package, so `java.util.Properties` doesn't compile — hence the imported
@@ -156,6 +167,16 @@ def main() -> None:
 
     with open(GRADLE, "w") as fh:
         fh.write(src)
+
+    with open(MANIFEST) as fh:
+        manifest = fh.read()
+    if INTERNET_PERMISSION not in manifest:
+        fail(
+            "the INTERNET permission is not in the generated manifest in the "
+            "expected form; reconcile with INTERNET_PERMISSION"
+        )
+    with open(MANIFEST, "w") as fh:
+        fh.write(manifest.replace(INTERNET_PERMISSION, "", 1))
     what = f"NDK {NDK_VERSION}" if no_signing else f"release signing (NDK {NDK_VERSION})"
     if debug_symbols:
         what += " + native debug symbols"

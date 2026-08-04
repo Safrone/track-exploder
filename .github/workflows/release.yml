@@ -262,6 +262,11 @@ jobs:
             echo "::error::The APK is signed with an Android debug key, not the sideload release key" >&2
             exit 1
           fi
+          # F-Droid rejects an APK with an unrecognised signing block or, less
+          # fatally but visibly, advertises permissions the app never uses. Both
+          # have already cost a published release; check before uploading.
+          aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          python3 .github/scripts/check-android-apk.py "$apk" "$aapt2"
           dest="Track-Exploder_${GITHUB_REF_NAME}_android-arm64.apk"
           cp "$apk" "$dest"
           ls -lh "$dest"

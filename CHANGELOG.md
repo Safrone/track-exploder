@@ -5,6 +5,16 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The Android app no longer requests the INTERNET permission.** Tauri's
+  manifest template asks for it unconditionally so that `tauri android dev` can
+  load the frontend from a dev server; a packaged build serves everything from
+  inside the APK and never opens a socket. Track Exploder does all its work
+  locally, and now says so on its app listing.
+
 ## [1.1.14] - 2026-08-01
 
 The app itself is unchanged.

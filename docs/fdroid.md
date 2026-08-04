@@ -113,6 +113,24 @@ one fails the pipeline outright, with the build itself perfectly fine.
 false }`. `includeInBundle` is deliberately left alone: the bundle goes to Play,
 which is the only consumer that reads it.
 
+### The INTERNET permission
+
+Tauri's manifest template requests `android.permission.INTERNET`
+unconditionally, because `tauri android dev` loads the frontend from a dev
+server. A packaged build never does: every request goes through
+`RustWebViewClient.shouldInterceptRequest` and is answered from assets inside the
+APK. The app has no HTTP client, no updater, no `fetch`/`XHR`/`WebSocket`, and a
+CSP with no external origins; the Ko-fi link hands a URL to the system browser,
+which networks under its own permission.
+
+`patch-android-signing.py` removes it. Verified by installing a build without it
+on an Android 35 emulator: the app launches, the WebView renders the full UI, and
+logcat shows no `ERR_ACCESS_DENIED` or `SecurityException`. `tauri android dev`
+is unaffected — the dev flow does not run this script.
+
+`check-android-apk.py`, run by the release job before upload, fails the build if
+either the permission or an unrecognised signing block comes back.
+
 ### Why the release job builds from /home/vagrant/build/…
 
 Tauri's `generate_context!` reads `$CARGO_MANIFEST_DIR` at compile time and
