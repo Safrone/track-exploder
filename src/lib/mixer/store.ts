@@ -67,6 +67,30 @@ export function setTrack(part: Part, track: SourceTrack): void {
   mixer.update((s) => ({ ...s, tracks: { ...s.tracks, [part]: track } }));
 }
 
+/** Unload one part, dropping its source track and timing correction. */
+export function clearTrack(part: Part): void {
+  mixer.update((s) => {
+    const tracks = { ...s.tracks };
+    const alignment = { ...s.alignment };
+    delete tracks[part];
+    delete alignment[part];
+    return { ...s, tracks, alignment };
+  });
+}
+
+/**
+ * Unload every part and put the mix back to its defaults. The source channel and
+ * output mode stay put: they describe the files being worked with and how they
+ * get exported, not the mix, and re-picking them for every song would be a chore.
+ */
+export function clearAllTracks(): void {
+  mixer.update((s) => ({
+    ...initialState(),
+    output: s.output,
+    sourceChannel: s.sourceChannel,
+  }));
+}
+
 /** Set (or clear, with `undefined`) one part's timing correction. */
 export function setAlignment(part: Part, alignment: Alignment | undefined): void {
   mixer.update((s) => {

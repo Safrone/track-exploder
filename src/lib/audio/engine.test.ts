@@ -213,3 +213,29 @@ describe("timing corrections", () => {
     expect(fresh.getBuffer("lead")!.length).toBe(FRAMES - 6688);
   });
 });
+
+describe("clearing a stem", () => {
+  it("drops the buffer, leaving the other parts loaded", () => {
+    engine.clearBuffer("lead");
+    expect(engine.hasBuffer("lead")).toBe(false);
+    expect(PARTS.filter((p) => engine.hasBuffer(p))).toEqual(["tenor", "baritone", "bass"]);
+  });
+
+  it("stops playing the cleared part and keeps the rest going", async () => {
+    await engine.play();
+    ctx.started.length = 0;
+
+    engine.clearBuffer("lead");
+    await tick();
+
+    expect(ctx.started).toHaveLength(PARTS.length - 1);
+    expect(engine.playing).toBe(true);
+  });
+
+  it("forgets the part's timing correction, so a reload starts untouched", () => {
+    engine.applyMix(state({ lead: correction(-6688) }));
+    engine.clearBuffer("lead");
+    engine.setBuffer("lead", new FakeBuffer(FRAMES, SAMPLE_RATE, 0.5) as unknown as AudioBuffer);
+    expect(engine.getBuffer("lead")!.length).toBe(FRAMES);
+  });
+});

@@ -10,6 +10,14 @@ export function setPartTags(part: Part, tags: Tags): void {
   partTags.update((m) => ({ ...m, [part]: tags }));
 }
 
+export function clearPartTags(part: Part): void {
+  partTags.update((m) => {
+    const next = { ...m };
+    delete next[part];
+    return next;
+  });
+}
+
 export function clearTags(): void {
   partTags.set({});
 }

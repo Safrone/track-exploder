@@ -7,6 +7,8 @@
     patchState,
     setAlignment,
     clearAlignment,
+    clearTrack,
+    clearAllTracks,
   } from "./lib/mixer/store";
   import { getEngine, currentEngine, rewindPlayback } from "./lib/audio/playback";
   import {
@@ -22,7 +24,7 @@
   import { partLanes, type PartLane } from "./lib/audio/waveform";
   import { isTauri } from "./lib/audio/tauri";
   import { readAudioTags } from "./lib/audio/decode";
-  import { clearTags, setPartTags } from "./lib/mixer/tags";
+  import { clearTags, clearPartTags, setPartTags } from "./lib/mixer/tags";
   import PartStrip from "./lib/components/PartStrip.svelte";
   import Transport from "./lib/components/Transport.svelte";
   import PresetBar from "./lib/components/PresetBar.svelte";
@@ -140,6 +142,29 @@
     }
   }
 
+  /** Unload one part, leaving the others (and every mix setting) as they are. */
+  function onClearPart(part: Part) {
+    if (!snapshot().tracks[part]) return;
+    const engine = currentEngine();
+    engine?.clearBuffer(part);
+    clearTrack(part);
+    clearPartTags(part);
+    engine?.applyMix(snapshot());
+    if (!PARTS.some((p) => snapshot().tracks[p])) rewindPlayback();
+    toast(`Cleared ${part}`, "info");
+  }
+
+  /** Unload the whole set and reset the mix, back to a blank slate. */
+  function onClearAll() {
+    const engine = currentEngine();
+    for (const part of PARTS) engine?.clearBuffer(part);
+    clearAllTracks();
+    clearTags();
+    engine?.applyMix(snapshot());
+    rewindPlayback();
+    toast("Cleared all parts and reset the mix", "info");
+  }
+
   /**
    * Measure how far apart the loaded parts play and line them up.
    *
@@ -238,6 +263,9 @@
     </div>
     <div class="actions">
       <button class="about" onclick={() => (showAbout = true)}>About</button>
+      {#if hasTracks}
+        <button class="about" onclick={onClearAll} disabled={loading}>Clear all</button>
+      {/if}
       <button class="load" onclick={onLoad} disabled={loading}>
         {loading ? "Loading…" : "Load part tracks"}
       </button>
@@ -311,7 +339,7 @@
 
   <section class="strips">
     {#each PARTS as part (part)}
-      <PartStrip {part} {onLoadPart} />
+      <PartStrip {part} {onLoadPart} {onClearPart} />
     {/each}
   </section>
 
@@ -410,9 +438,13 @@
     cursor: pointer;
     font-size: 0.9rem;
   }
-  .about:hover {
+  .about:hover:not(:disabled) {
     color: var(--accent);
     border-color: var(--accent);
+  }
+  .about:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .banner {
     background: #3b2f14;

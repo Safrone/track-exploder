@@ -8,8 +8,9 @@
   interface Props {
     part: Part;
     onLoadPart: (part: Part) => void;
+    onClearPart: (part: Part) => void;
   }
-  let { part, onLoadPart }: Props = $props();
+  let { part, onLoadPart, onClearPart }: Props = $props();
 
   const track = $derived($mixer.tracks[part]);
   const m = $derived($mixer.mix[part]);
@@ -46,6 +47,13 @@
     <button class="loadbtn" onclick={() => onLoadPart(part)}>
       {track ? "Replace" : "Load file"}
     </button>
+    {#if track}
+      <button
+        class="loadbtn clear"
+        title="Unload this part"
+        onclick={() => onClearPart(part)}>Clear</button
+      >
+    {/if}
     <button
       class="mute"
       class:active={!m.included}
@@ -178,6 +186,10 @@
   .loadbtn:hover {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .loadbtn.clear:hover {
+    border-color: #b91c1c;
+    color: #fecaca;
   }
   .mute {
     margin-left: auto;

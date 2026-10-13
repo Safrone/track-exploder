@@ -71,6 +71,18 @@ export class MixEngine {
     this.preparedTempo = null; // playback buffers are now stale
   }
 
+  /** Drop a part's stem; the part goes back to being unloaded. */
+  clearBuffer(part: Part): void {
+    if (!this.buffers.has(part) && !this.rawBuffers.has(part)) return;
+    this.restartIfPlaying(() => {
+      this.rawBuffers.delete(part);
+      this.buffers.delete(part);
+      this.alignment.delete(part);
+      this.playbackBuffers.delete(part);
+      this.preparedTempo = null; // playback buffers are now stale
+    });
+  }
+
   /**
    * Apply (or clear, with `undefined`) a part's timing correction. The stem is
    * re-spliced from the decoded original, so nudging never compounds.
