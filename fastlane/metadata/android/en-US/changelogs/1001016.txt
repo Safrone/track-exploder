@@ -1,0 +1,1 @@
+Clear a single part, or every part at once to start the next song fresh. Export names no longer keep a stray bracket from files named like "Song - (Bass) Left.mp3".

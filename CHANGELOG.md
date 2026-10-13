@@ -5,6 +5,29 @@ All notable changes to Track Exploder are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.16] - 2026-10-13
+
+### Added
+
+- **Drag and drop (desktop).** Drop part files anywhere on the window to load
+  them, matched to parts by name as with "Load part tracks", or drop a single
+  file onto a part to load it there.
+- **Clear a part, or the whole set.** Each part has a Clear button, and "Clear
+  all" unloads everything and resets the mix for the next song. The side the
+  isolated part is on, and the stereo/mono output, stay as they were.
+- **Exports credit Track Exploder (desktop).** MP3 and FLAC exports carry a
+  comment tag saying they were made with Track Exploder, with a link to this
+  repository. A comment the source files share is kept ahead of it.
+
+### Fixed
+
+- **Song names from bracketed part tokens.** Files named like "Look For The
+  Light - (Bass) Left Pitched Down.mp3" now export as "Look For The Light - …"
+  instead of "Look For The Light - ( - …". A partial set, or a single loaded
+  file, gets the clean title too.
+- **Cancelling "Load part tracks"** no longer reports "No parts matched" or
+  throws away the loaded set's timing alignment.
+
 ## [1.1.15] - 2026-08-04
 
 ### Changed
@@ -206,6 +229,7 @@ needs to build Track Exploder from source and notice future releases.
   files, plus save-able export presets and bulk export.
 - Desktop and Android builds (Tauri v2).
 
+[1.1.16]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.16
 [1.1.15]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.15
 [1.1.14]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.14
 [1.1.13]: https://github.com/Safrone/track-exploder/releases/tag/v1.1.13
