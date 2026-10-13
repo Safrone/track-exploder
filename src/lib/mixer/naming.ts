@@ -1,6 +1,20 @@
 import { PARTS, type Part } from "../types";
 import type { MixerState } from "./store";
 
+/** Words that name each part in a learning track's filename or tags. */
+export const PART_KEYWORDS: Record<Part, string[]> = {
+  tenor: ["tenor", "ten"],
+  lead: ["lead", "melody"],
+  baritone: ["baritone", "bari", "bar"],
+  bass: ["bass"],
+};
+
+// Any part keyword as a whole word: "TENOR", "(Bass)", "[bari]".
+const PART_TOKEN = new RegExp(
+  `\\b(?:${PARTS.flatMap((p) => PART_KEYWORDS[p]).join("|")})\\b`,
+  "gi",
+);
+
 function stripExt(name: string): string {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(0, dot) : name;
@@ -25,21 +39,32 @@ function sanitize(s: string): string {
 }
 
 /**
- * Derive a song base name from the loaded track filenames. Since the four files
- * differ only in their part token (TENOR/LEAD/BARI/BASS), the longest common
- * prefix is the song title up to that token.
+ * The song title in one part file's name: everything before its part token. It's
+ * the last token that counts, since a title can name a part too ("Lead Me Home -
+ * BASS"). A name with no token, or one that starts with it, is kept whole.
+ */
+function titleBeforePart(name: string): string {
+  let cut = -1;
+  for (const m of name.matchAll(PART_TOKEN)) cut = m.index;
+  return cut > 0 ? name.slice(0, cut) : name;
+}
+
+/**
+ * Derive a song base name from the loaded track filenames: the title before the
+ * part token (TENOR, "(Bass)", ...), shared across the files. What follows the
+ * token (arranger, date, "Left Pitched Down") is dropped, along with the
+ * separator and any opening bracket left dangling where the token was cut.
  */
 export function commonSongBase(names: string[]): string {
   const bare = names.map(stripExt).filter(Boolean);
   if (bare.length === 0) return "mix";
-  if (bare.length === 1) return sanitize(bare[0]) || "mix";
 
-  let prefix = bare[0];
-  for (const s of bare) {
+  const titles = bare.map(titleBeforePart);
+  let prefix = titles[0];
+  for (const s of titles) {
     while (prefix && !s.startsWith(prefix)) prefix = prefix.slice(0, -1);
   }
-  // Trim a trailing separator left where the part token was removed.
-  const base = sanitize(prefix.replace(/[\s\-_–—]+$/, ""));
+  const base = sanitize(prefix.replace(/[\s\-_–—([{]+$/, ""));
   return base.length >= 3 ? base : sanitize(bare[0]) || "mix";
 }
 

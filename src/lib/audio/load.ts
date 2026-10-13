@@ -1,17 +1,11 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { PARTS, type Channel, type Part, type SourceTrack } from "../types";
 import { setTrack } from "../mixer/store";
+import { PART_KEYWORDS } from "../mixer/naming";
 import { decodeStem, readAudioTags } from "./decode";
 import { invokeContentName } from "./tauri";
 import { isRealPath } from "./files";
 import type { MixEngine } from "./engine";
-
-const PART_KEYWORDS: Record<Part, string[]> = {
-  tenor: ["tenor", "ten"],
-  lead: ["lead", "melody"],
-  baritone: ["baritone", "bari", "bar"],
-  bass: ["bass"],
-};
 
 export function basename(path: string): string {
   const parts = path.split(/[/\\]/);

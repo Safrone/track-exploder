@@ -46,6 +46,33 @@ describe("commonSongBase", () => {
   it("falls back to 'mix' when no names", () => {
     expect(commonSongBase([])).toBe("mix");
   });
+
+  const BRACKETED = ["Tenor", "Lead", "Bari", "Bass"].map(
+    (p) => `Look For The Light - (${p}) Left Pitched Down.mp3`,
+  );
+
+  it("drops the bracket that opened the part token", () => {
+    expect(commonSongBase(BRACKETED)).toBe("Look For The Light");
+  });
+
+  it("doesn't keep half a part name when only some parts are loaded", () => {
+    // BARI and BASS share "Ba", which the old common-prefix rule kept.
+    expect(commonSongBase(BRACKETED.slice(2))).toBe("Look For The Light");
+  });
+
+  it("finds the title in a single file's name", () => {
+    expect(commonSongBase([BRACKETED[3]])).toBe("Look For The Light");
+    expect(commonSongBase([REAL_NAMES.bass])).toBe("01 Lets Burn Up the Town [C]");
+  });
+
+  it("cuts at the part token, not a part word in the title", () => {
+    const names = ["TENOR", "LEAD", "BARI", "BASS"].map((p) => `Lead Me Home - ${p}.mp3`);
+    expect(commonSongBase(names)).toBe("Lead Me Home");
+  });
+
+  it("keeps a name with no part token whole", () => {
+    expect(commonSongBase(["Look For The Light.mp3"])).toBe("Look For The Light");
+  });
 });
 
 describe("describeMix", () => {
