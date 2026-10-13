@@ -169,6 +169,13 @@ fn write_mp3_tags(path: &Path, tags: &Tags) -> Result<(), TagError> {
     {
         tag.set_year(y);
     }
+    if let Some(v) = tags.get("comment") {
+        tag.add_frame(id3::frame::Comment {
+            lang: "eng".into(),
+            description: String::new(),
+            text: v.clone(),
+        });
+    }
     tag.write_to_path(path, Version::Id3v24)
         .map_err(|e| TagError::Id3(e.to_string()))?;
     Ok(())
@@ -207,5 +214,35 @@ mod tests {
 
         assert_eq!(read.get("album").map(String::as_str), Some("Brigade"));
         assert_eq!(read.get("title").map(String::as_str), Some("Test"));
+    }
+
+    #[cfg(feature = "mp3")]
+    #[test]
+    fn mp3_tag_roundtrip() {
+        use crate::encode::{encode_interleaved, BitDepth};
+
+        let samples: Vec<f32> = (0..44_100)
+            .map(|i| ((i as f32) * 0.01).sin() * 0.4)
+            .collect();
+        let bytes =
+            encode_interleaved(&samples, 1, 44_100, ExportFormat::Mp3, BitDepth::Sixteen).unwrap();
+
+        let mut path = std::env::temp_dir();
+        path.push(format!("te_tagtest_{}.mp3", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+
+        let mut tags = Tags::new();
+        tags.insert("title".into(), "Test".into());
+        tags.insert("comment".into(), "Generated with Track Exploder".into());
+        write_tags(&path, ExportFormat::Mp3, &tags).unwrap();
+
+        let read = read_tags(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(read.get("title").map(String::as_str), Some("Test"));
+        assert_eq!(
+            read.get("comment").map(String::as_str),
+            Some("Generated with Track Exploder")
+        );
     }
 }

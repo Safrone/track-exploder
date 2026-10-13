@@ -6,7 +6,7 @@ import { analyzeAlignment, applyAlignment } from "./align";
 import { invokeEncodeMix, invokeEmbedTags } from "./tauri";
 import { writeBytes, isRealPath } from "./files";
 import { commonSongBase, suggestBaseNameFor } from "../mixer/naming";
-import { computeCommon } from "../mixer/tags";
+import { computeCommon, exportTags } from "../mixer/tags";
 import { addExport, setLastExportDir } from "../mixer/exports";
 import type { MixerState } from "../mixer/store";
 
@@ -175,10 +175,9 @@ export async function bulkExport(
         tempo,
       });
       await writeBytes(outPath, new Uint8Array(encoded));
-      const tags = computeCommon(tagMap);
-      if (isRealPath(outPath) && Object.keys(tags).length > 0) {
+      if (isRealPath(outPath)) {
         try {
-          await invokeEmbedTags(outPath, opts.format, tags);
+          await invokeEmbedTags(outPath, opts.format, exportTags(computeCommon(tagMap)));
         } catch {
           /* tags best-effort */
         }

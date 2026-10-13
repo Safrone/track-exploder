@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store";
 import { PARTS, type Part } from "../types";
+import { REPO_URL } from "../links";
 
 export type Tags = Record<string, string>;
 
@@ -35,6 +36,19 @@ export function computeCommon(map: Partial<Record<Part, Tags>>): Tags {
     if (parts.every((p) => map[p]![k] === v)) out[k] = v;
   }
   return out;
+}
+
+/** Credit written into the comment tag of every export. */
+export const EXPORT_CREDIT = `Generated with Track Exploder: ${REPO_URL}`;
+
+/**
+ * The tags to embed in an export: the sources' common tags, with the credit
+ * added to the comment after any comment the sources share.
+ */
+export function exportTags(common: Tags): Tags {
+  const shared = common.comment;
+  if (shared?.includes(REPO_URL)) return common;
+  return { ...common, comment: shared ? `${shared}\n${EXPORT_CREDIT}` : EXPORT_CREDIT };
 }
 
 /** Convenience: common tags from the current store state. */

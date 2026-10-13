@@ -3,7 +3,7 @@
   import type { BitDepth, ExportFormat, OutputMode } from "../types";
   import { mixer, snapshot, patchState } from "../mixer/store";
   import { suggestBaseName } from "../mixer/naming";
-  import { partTags, computeCommon } from "../mixer/tags";
+  import { partTags, computeCommon, exportTags } from "../mixer/tags";
   import { addExport, getLastExportDir, setLastExportDir, splitDir } from "../mixer/exports";
   import { getEngine } from "../audio/playback";
   import { renderMix } from "../audio/export";
@@ -103,9 +103,9 @@
       message = "Writing…";
       await writeBytes(path, new Uint8Array(encoded));
       // Embed tags only where we have a real filesystem path (desktop).
-      if (isRealPath(path) && tagKeys.length > 0) {
+      if (isRealPath(path)) {
         try {
-          await invokeEmbedTags(path, format, commonTags);
+          await invokeEmbedTags(path, format, exportTags(commonTags));
         } catch {
           /* tags best-effort */
         }
