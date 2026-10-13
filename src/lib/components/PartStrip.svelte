@@ -9,8 +9,10 @@
     part: Part;
     onLoadPart: (part: Part) => void;
     onClearPart: (part: Part) => void;
+    /** A dragged file is over this strip and would load into it. */
+    dropTarget?: boolean;
   }
-  let { part, onLoadPart, onClearPart }: Props = $props();
+  let { part, onLoadPart, onClearPart, dropTarget = false }: Props = $props();
 
   const track = $derived($mixer.tracks[part]);
   const m = $derived($mixer.mix[part]);
@@ -33,7 +35,13 @@
   }
 </script>
 
-<div class="strip" class:loaded={!!track} class:muted={!!track && !m.included}>
+<div
+  class="strip"
+  class:loaded={!!track}
+  class:muted={!!track && !m.included}
+  class:droptarget={dropTarget}
+  data-drop-part={part}
+>
   <div class="head">
     <span class="name">{part}</span>
     {#if track}
@@ -147,6 +155,11 @@
   }
   .strip.muted {
     border-color: #5b2626;
+  }
+  .strip.droptarget {
+    opacity: 1;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
   .head {
     display: flex;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { PARTS, type Channel, type Part } from "./lib/types";
   import {
     mixer,
@@ -12,13 +13,16 @@
   } from "./lib/mixer/store";
   import { getEngine, currentEngine, rewindPlayback } from "./lib/audio/playback";
   import {
-    pickAndLoad,
+    pickAudioFiles,
     pickOneAudioFile,
+    loadFiles,
     loadPart,
+    resolvePart,
     reExtractAll,
     displayName,
     basename,
   } from "./lib/audio/load";
+  import { listenForFileDrops } from "./lib/audio/drop";
   import { analyzeAlignment, shiftMs } from "./lib/audio/align";
   import { loadSampleTracks } from "./lib/audio/sampleTracks";
   import { partLanes, type PartLane } from "./lib/audio/waveform";
@@ -45,6 +49,8 @@
   let loadProgress = $state<{ done: number; total: number; part: Part } | null>(null);
   let showAbout = $state(false);
   let lanes = $state<PartLane[]>([]);
+  // Files are being dragged over the window: `part` is the strip they'd land on.
+  let dropHover = $state<{ part: Part | null } | null>(null);
   const tauri = isTauri();
 
   const hasTracks = $derived(PARTS.some((p) => !!$mixer.tracks[p]));
@@ -60,6 +66,23 @@
     lanes = partLanes(engine, state, WAVE_BUCKETS);
   });
 
+  onMount(() => {
+    if (!tauri) return;
+    const unlisten = listenForFileDrops({
+      onHover: (part) => {
+        dropHover = loading ? null : { part };
+      },
+      onLeave: () => {
+        dropHover = null;
+      },
+      onDrop: (paths, part) => {
+        dropHover = null;
+        void onDropFiles(paths, part);
+      },
+    }).catch(() => () => {});
+    return () => void unlisten.then((stop) => stop());
+  });
+
   // Explicit per-part load — pick one file and assign it to `part`. Works on
   // mobile where the file picker returns opaque content:// URIs (no filename to
   // auto-detect the part from).
@@ -69,7 +92,10 @@
       return;
     }
     const path = await pickOneAudioFile();
-    if (!path) return;
+    if (path) await loadPartFile(part, path);
+  }
+
+  async function loadPartFile(part: Part, path: string) {
     loading = true;
     try {
       const name = await displayName(path);
@@ -94,12 +120,41 @@
       toast("File loading needs the desktop app (run `npm run tauri dev`).", "error");
       return;
     }
+    const paths = await pickAudioFiles();
+    if (paths.length) await loadSet(paths);
+  }
+
+  /**
+   * Files dragged in from the file manager. One file dropped on a part strip
+   * loads into that part; otherwise each file goes to the part its name (or
+   * tags) says, as with the picker.
+   */
+  async function onDropFiles(paths: string[], part: Part | null) {
+    if (loading) return;
+    if (paths.length === 0) {
+      toast("Only audio files can be loaded (mp3, wav, flac, m4a, ogg…).", "error");
+      return;
+    }
+    if (paths.length > 1) {
+      await loadSet(paths);
+      return;
+    }
+    const target = part ?? (await resolvePart(paths[0])).part;
+    if (target) await loadPartFile(target, paths[0]);
+    else {
+      toast(`Couldn't tell which part ${basename(paths[0])} is. Drop it onto its part.`, "error");
+    }
+  }
+
+  /** Load a set of part files, each into the part its name (or tags) says. */
+  async function loadSet(paths: string[]) {
     loading = true;
     clearTags();
     clearAlignment(); // offsets belong to the set being replaced
     try {
-      const report = await pickAndLoad(
+      const report = await loadFiles(
         getEngine(),
+        paths,
         (done, total, part) => {
           loadProgress = { done, total, part };
         },
@@ -276,6 +331,19 @@
   <ThankYou open={$showThanks} onClose={dismissThanks} />
   <Toaster />
 
+  {#if dropHover}
+    <div class="dropzone" class:targeted={!!dropHover.part}>
+      <span class="drophint">
+        {#if dropHover.part}
+          Drop to load as {dropHover.part}
+        {:else}
+          Drop to load. Each file goes to the part its name says, or drop one file onto a
+          part.
+        {/if}
+      </span>
+    </div>
+  {/if}
+
   {#if !tauri}
     <div class="banner">
       Running in a plain browser — loading and exporting files require the desktop
@@ -339,7 +407,7 @@
 
   <section class="strips">
     {#each PARTS as part (part)}
-      <PartStrip {part} {onLoadPart} {onClearPart} />
+      <PartStrip {part} {onLoadPart} {onClearPart} dropTarget={dropHover?.part === part} />
     {/each}
   </section>
 
@@ -445,6 +513,30 @@
   .about:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+  .dropzone {
+    position: fixed;
+    inset: 0.5rem;
+    border: 2px dashed var(--accent);
+    border-radius: 14px;
+    background: rgba(52, 211, 153, 0.05);
+    pointer-events: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 1.5rem;
+    z-index: 40;
+  }
+  .dropzone.targeted {
+    border-color: var(--border);
+    background: none;
+  }
+  .drophint {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
   }
   .banner {
     background: #3b2f14;

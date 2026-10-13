@@ -4,7 +4,7 @@ import { setTrack } from "../mixer/store";
 import { PART_KEYWORDS } from "../mixer/naming";
 import { decodeStem, readAudioTags } from "./decode";
 import { invokeContentName } from "./tauri";
-import { isRealPath } from "./files";
+import { extOf, isRealPath } from "./files";
 import type { MixEngine } from "./engine";
 
 export function basename(path: string): string {
@@ -79,9 +79,14 @@ export async function loadPart(
   setTrack(part, { part, path, name: name ?? (await displayName(path)), channel });
 }
 
-const AUDIO_FILTERS = [
-  { name: "Audio", extensions: ["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus"] },
-];
+const AUDIO_EXTENSIONS = ["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus"];
+const AUDIO_FILTERS = [{ name: "Audio", extensions: AUDIO_EXTENSIONS }];
+
+/** Whether a path names a file we can decode, judged by its extension. */
+export function isAudioFile(path: string): boolean {
+  const ext = extOf(path);
+  return !!ext && AUDIO_EXTENSIONS.includes(ext);
+}
 
 /** Open a single-file picker (used for explicit per-part loading). */
 export async function pickOneAudioFile(): Promise<string | null> {
@@ -99,9 +104,7 @@ export async function pickAudioFiles(): Promise<string[]> {
   const selected = await open({
     multiple: true,
     title: "Select the four part tracks",
-    filters: [
-      { name: "Audio", extensions: ["mp3", "wav", "flac", "m4a", "aac", "ogg", "opus"] },
-    ],
+    filters: AUDIO_FILTERS,
   });
   if (!selected) return [];
   return Array.isArray(selected) ? selected : [selected];
@@ -137,18 +140,17 @@ async function loadAll(
 }
 
 /**
- * Pick files, guess each part (by filename, falling back to metadata tags for
- * Android content URIs), and decode the matched ones (default channel: left).
- * Part resolution and decoding both run concurrently across files. Returns which
+ * Guess each file's part (by filename, falling back to metadata tags for Android
+ * content URIs), and decode the matched ones (default channel: left). Part
+ * resolution and decoding both run concurrently across files. Returns which
  * parts loaded and any files that couldn't be auto-assigned.
  */
-export async function pickAndLoad(
+export async function loadFiles(
   engine: MixEngine,
+  paths: string[],
   onProgress?: LoadProgress,
   channel: Channel = "left",
 ): Promise<LoadReport> {
-  const paths = await pickAudioFiles();
-
   // Resolve every file's part concurrently, then assign deterministically in the
   // picked order (first file wins a part; a duplicate part goes to unassigned).
   const resolved = await Promise.all(
